@@ -344,6 +344,9 @@ class InstagramScraper(object):
 
     def get_media(self, dst, executor, future_to_item, username):
         """Scrapes the user's posts for media."""
+        if self.media_types == ['story']:
+            return
+
         iter = 0
         for item in tqdm.tqdm(self.media_gen(username), desc='Searching {0} for posts'.format(username),
                               unit=' media', disable=self.quiet):
