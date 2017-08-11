@@ -274,11 +274,10 @@ class InstagramScraper(object):
             if node['is_video']:
                 details = self.__get_media_details(node['shortcode'])
 
-                if details:
+                if details and details is not None:
                     node['urls'] = [details['video_url']]
-
-                if self.include_location:
-                    node['location'] = details.get('location')
+                    if self.include_location:
+                        node['location'] = details.get('location')
 
                 self.extract_tags(node)
             else:
