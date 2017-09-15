@@ -526,7 +526,7 @@ class InstagramScraper(object):
         """Sets the story url."""
         urls = []
         if 'video_versions' in item:
-            urls.append(item['video_versions'][0]['url'].split('?')[0])
+            urls.append(item['video_versions'][0]['url'])
         if 'image_versions2' in item:
             urls.append(self.get_original_image(item['image_versions2']['candidates'][0]['url'].split('?')[0]))
         item['urls'] = urls
@@ -535,7 +535,7 @@ class InstagramScraper(object):
     def download(self, item, save_dir='./'):
         """Downloads the media file."""
         for url in item['urls']:
-            base_name = url.split('/')[-1]
+            base_name = url.split('/')[-1].split('?')[0]
             file_path = os.path.join(save_dir, base_name)
 
             if not os.path.isfile(file_path):
