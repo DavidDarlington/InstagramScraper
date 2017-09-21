@@ -348,7 +348,7 @@ class InstagramScraper(object):
         # Download the profile pic if not the default.
         if 'image' in self.media_types and 'profile_pic_url_hd' in user \
                 and '11906329_960233084022564_1448528159' not in user['profile_pic_url_hd']:
-            item = {'urls': [re.sub(r'/s\d{3,}x\d{3,}/', '/', user['profile_pic_url_hd'])], 'created_time': 1286323200}
+            item = {'urls': [re.sub(r'/[sp]\d{3,}x\d{3,}/', '/', user['profile_pic_url_hd'])], 'created_time': 1286323200}
 
             if self.latest is False or os.path.isfile(dst + '/' + item['urls'][0].split('/')[-1]) is False:
                 for item in tqdm.tqdm([item], desc='Searching {0} for profile pic'.format(username), unit=" images",
@@ -517,7 +517,7 @@ class InstagramScraper(object):
     def get_original_image(self, url):
         """Gets the full-size image from the specified url."""
         # remove dimensions to get largest image
-        url = re.sub(r'/s\d{3,}x\d{3,}/', '/', url)
+        url = re.sub(r'/[sp]\d{3,}x\d{3,}/', '/', url)
         # get non-square image if one exists
         url = re.sub(r'/c\d{1,}.\d{1,}.\d{1,}.\d{1,}/', '/', url)
         return url
