@@ -58,7 +58,7 @@ class InstagramScraper(object):
         self.logged_in = False
         self.last_scraped_filemtime = 0
         if default_attr['filter']:
-            self.filter = set(self.filter)
+            self.filter = list(self.filter)
 
     def login(self):
         """Logs in to instagram."""
