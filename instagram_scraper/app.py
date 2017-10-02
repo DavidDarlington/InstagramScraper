@@ -205,7 +205,7 @@ class InstagramScraper(object):
                 iter = iter + 1
                 if self.maximum != 0 and iter >= self.maximum:
                     break
-            
+
             if future_to_item:
                 for future in tqdm.tqdm(concurrent.futures.as_completed(future_to_item), total=len(future_to_item),
                                         desc='Downloading', disable=self.quiet):
@@ -384,9 +384,21 @@ class InstagramScraper(object):
         iter = 0
         for item in tqdm.tqdm(self.media_gen(username), desc='Searching {0} for posts'.format(username),
                               unit=' media', disable=self.quiet):
-            if self.in_media_types(item) and self.is_new_media(item):
-                future = executor.submit(self.download, item, dst)
-                future_to_item[future] = item
+            #-Filter command line
+            if self.filter:
+                if 'tags' in item:
+                    filtered = any(x in item['tags'] for x in self.filter)
+                    if self.in_media_types(item) and self.is_new_media(item) and filtered:
+                        future = executor.submit(self.download, item, dst)
+                        future_to_item[future] = item
+                else:
+                    #For when filter is on but media doesnt contain tags
+                    pass
+            #--------------#
+            else:
+                if self.in_media_types(item) and self.is_new_media(item):
+                    future = executor.submit(self.download, item, dst)
+                    future_to_item[future] = item
 
             if self.include_location:
                 media_exec.submit(self.__get_location, item)
