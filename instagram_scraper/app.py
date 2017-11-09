@@ -344,23 +344,25 @@ class InstagramScraper(object):
                 self.get_stories(dst, executor, future_to_item, user, username)
 
             # Crawls the media and sends it to the executor.
-            user_details = self.get_user_details(username)
-            self.get_media(dst, executor, future_to_item, user_details)
+            try:
+                user_details = self.get_user_details(username)
+                self.get_media(dst, executor, future_to_item, user_details)
 
-            # Displays the progress bar of completed downloads. Might not even pop up if all media is downloaded while
-            # the above loop finishes.
-            if future_to_item:
-                for future in tqdm.tqdm(concurrent.futures.as_completed(future_to_item), total=len(future_to_item),
-                                        desc='Downloading', disable=self.quiet):
-                    item = future_to_item[future]
+                # Displays the progress bar of completed downloads. Might not even pop up if all media is downloaded while
+                # the above loop finishes.
+                if future_to_item:
+                    for future in tqdm.tqdm(concurrent.futures.as_completed(future_to_item), total=len(future_to_item),
+                                            desc='Downloading', disable=self.quiet):
+                        item = future_to_item[future]
 
-                    if future.exception() is not None:
-                        self.logger.warning(
-                            'Media at {0} generated an exception: {1}'.format(item['urls'], future.exception()))
+                        if future.exception() is not None:
+                            self.logger.warning(
+                                'Media at {0} generated an exception: {1}'.format(item['urls'], future.exception()))
 
-            if (self.media_metadata or self.comments or self.include_location) and self.posts:
-                self.save_json(self.posts, '{0}/{1}.json'.format(dst, username))
-
+                if (self.media_metadata or self.comments or self.include_location) and self.posts:
+                    self.save_json(self.posts, '{0}/{1}.json'.format(dst, username))
+            except ValueError:
+                print ("Unable to open user Profile - %s" % username)
         self.logout()
 
     def get_profile_pic(self, dst, executor, future_to_item, user, username):
@@ -656,7 +658,7 @@ class InstagramScraper(object):
             with open(usernames_file) as user_file:
                 for line in user_file.readlines():
                     # Find all usernames delimited by ,; or whitespace
-                    users += re.findall(r'[^,;\s]+', line)
+                    users += re.findall(r'[^,;\s]+', line.split("#")[0])
         except IOError as err:
             raise ValueError('File not found ' + err)
 
