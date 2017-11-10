@@ -278,6 +278,9 @@ class InstagramScraper(object):
             details = self.__get_media_details(node['shortcode'])
             node['location'] = details.get('location')
 
+        if 'urls' not in node:
+            node['urls'] = []
+
         if node['is_video'] and 'video_url' in node:
             node['urls'] = [node['video_url']]
         elif '__typename' in node and node['__typename'] == 'GraphImage':
@@ -286,15 +289,16 @@ class InstagramScraper(object):
             if details is None:
                 details = self.__get_media_details(node['shortcode'])
 
-            if '__typename' in details and details['__typename'] == 'GraphVideo':
-                node['urls'] = [details['video_url']]
-            elif '__typename' in details and details['__typename'] == 'GraphSidecar':
-                urls = []
-                for carousel_item in details['edge_sidecar_to_children']['edges']:
-                    urls += self.augment_node(carousel_item['node'])['urls']
-                node['urls'] = urls
-            else:
-                node['urls'] = [self.get_original_image(details['display_url'])]
+            if details:
+                if '__typename' in details and details['__typename'] == 'GraphVideo':
+                    node['urls'] = [details['video_url']]
+                elif '__typename' in details and details['__typename'] == 'GraphSidecar':
+                    urls = []
+                    for carousel_item in details['edge_sidecar_to_children']['edges']:
+                        urls += self.augment_node(carousel_item['node'])['urls']
+                    node['urls'] = urls
+                else:
+                    node['urls'] = [self.get_original_image(details['display_url'])]
 
         return node
 
@@ -302,7 +306,11 @@ class InstagramScraper(object):
         resp = self.session.get(VIEW_MEDIA_URL.format(shortcode))
 
         if resp.status_code == 200:
-            return json.loads(resp.text)['graphql']['shortcode_media']
+            try:
+                return json.loads(resp.text)['graphql']['shortcode_media']
+            except ValueError:
+                self.logger.warning('Failed to get media details for ' + shortcode)
+
         else:
             self.logger.warning('Failed to get media details for ' + shortcode)
 
