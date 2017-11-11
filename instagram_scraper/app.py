@@ -362,7 +362,7 @@ class InstagramScraper(object):
                 if (self.media_metadata or self.comments or self.include_location) and self.posts:
                     self.save_json(self.posts, '{0}/{1}.json'.format(dst, username))
             except ValueError:
-                print ("Unable to open user Profile - %s" % username)
+                self.logger.error("Unable to open user profile - %s" % username)
         self.logout()
 
     def get_profile_pic(self, dst, executor, future_to_item, user, username):
