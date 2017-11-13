@@ -345,8 +345,12 @@ class InstagramScraper(object):
 
             # Crawls the media and sends it to the executor.
             try:
-                user_details = self.get_user_details(username)
-                self.get_media(dst, executor, future_to_item, user_details)
+                user = self.get_user(username)
+
+                if not user:
+                    continue
+
+                self.get_media(dst, executor, future_to_item, user)
 
                 # Displays the progress bar of completed downloads. Might not even pop up if all media is downloaded while
                 # the above loop finishes.
@@ -362,7 +366,7 @@ class InstagramScraper(object):
                 if (self.media_metadata or self.comments or self.include_location) and self.posts:
                     self.save_json(self.posts, '{0}/{1}.json'.format(dst, username))
             except ValueError:
-                self.logger.error("Unable to open user profile - %s" % username)
+                self.logger.error("Unable to scrape user - %s" % username)
         self.logout()
 
     def get_profile_pic(self, dst, executor, future_to_item, user, username):
@@ -395,29 +399,32 @@ class InstagramScraper(object):
                 if self.maximum != 0 and iter >= self.maximum:
                     break
 
-    def get_user_details(self, username):
+    def get_user(self, username):
         """Fetches the user's metadata."""
         url = USER_URL.format(username)
 
         resp = self.session.get(url)
 
         if resp.status_code == 200:
-            return json.loads(resp.text)['user']
+            user = json.loads(resp.text)['user']
+            if user and user['is_private'] and user['media']['count'] > 0 and not user['media']['nodes']:
+                self.logger.error('User {0} is private'.format(username))
+            return user
         else:
-            raise ValueError('Error getting user details for {0}'.format(username))
+            self.logger.error('Error getting user details for {0}. Please verify that the user exists.'.format(username))
 
-    def get_media(self, dst, executor, future_to_item, user_details):
+    def get_media(self, dst, executor, future_to_item, user):
         """Scrapes the user's posts for media."""
         if self.media_types == ['story']:
             return
 
-        username = user_details['username']
+        username = user['username']
 
         if self.include_location:
             media_exec = concurrent.futures.ThreadPoolExecutor(max_workers=5)
 
         iter = 0
-        for item in tqdm.tqdm(self.query_media_gen(user_details), desc='Searching {0} for posts'.format(username),
+        for item in tqdm.tqdm(self.query_media_gen(user), desc='Searching {0} for posts'.format(username),
                               unit=' media', disable=self.quiet):
             # -Filter command line
             if self.filter:
@@ -472,9 +479,9 @@ class InstagramScraper(object):
             return [self.set_story_url(item) for item in retval['items']]
         return []
 
-    def query_media_gen(self, user_details, end_cursor=''):
+    def query_media_gen(self, user, end_cursor=''):
         """Generator for media."""
-        media, end_cursor = self.__query_media(user_details['id'], end_cursor)
+        media, end_cursor = self.__query_media(user['id'], end_cursor)
 
         if media:
             try:
@@ -485,11 +492,11 @@ class InstagramScraper(object):
                         yield item
 
                     if end_cursor:
-                        media, end_cursor = self.__query_media(user_details['id'], end_cursor)
+                        media, end_cursor = self.__query_media(user['id'], end_cursor)
                     else:
                         return
             except ValueError:
-                self.logger.exception('Failed to query media for user ' + user_details['username'])
+                self.logger.exception('Failed to query media for user ' + user['username'])
 
     def __query_media(self, id, end_cursor=''):
         resp = self.session.get(QUERY_MEDIA.format(id, end_cursor))
