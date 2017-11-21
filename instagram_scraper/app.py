@@ -476,7 +476,7 @@ class InstagramScraper(object):
 
         retval = json.loads(resp.text)
 
-        if resp.status_code == 200 and 'reel' in retval and len(retval['reel']['items']) > 0:
+        if resp.status_code == 200 and retval['reel'] and 'items' in retval['reel'] and len(retval['reel']['items']) > 0:
             return [self.set_story_url(item) for item in retval['reel']['items']]
         return []
 
