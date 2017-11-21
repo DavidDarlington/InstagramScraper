@@ -13,7 +13,12 @@ import re
 import sys
 import textwrap
 import time
-import urlparse
+
+try:
+    from urllib.parse import urlparse
+except ImportError:
+    from urlparse import urlparse
+
 import warnings
 
 import concurrent.futures
@@ -21,6 +26,8 @@ import requests
 import tqdm
 
 from instagram_scraper.constants import *
+
+
 
 try:
     reload(sys)  # Python 2.7
@@ -583,7 +590,7 @@ class InstagramScraper(object):
             if not os.path.isfile(file_path):
                 with open(file_path, 'wb') as media_file:
                     try:
-                        headers = {'Host': urlparse.urlparse(url).hostname}
+                        headers = {'Host': urlparse(url).hostname}
                         if is_video:
                             r = self.session.get(url, headers=headers, stream=True)
                             for chunk in r.iter_content(chunk_size=1024):
