@@ -476,8 +476,8 @@ class InstagramScraper(object):
 
         retval = json.loads(resp.text)
 
-        if resp.status_code == 200 and 'items' in retval and len(retval['items']) > 0:
-            return [self.set_story_url(item) for item in retval['items']]
+        if resp.status_code == 200 and 'reel' in retval and len(retval['reel']['items']) > 0:
+            return [self.set_story_url(item) for item in retval['reel']['items']]
         return []
 
     def query_media_gen(self, user, end_cursor=''):
@@ -569,7 +569,7 @@ class InstagramScraper(object):
         if 'video_versions' in item:
             urls.append(item['video_versions'][0]['url'])
         if 'image_versions2' in item:
-            urls.append(self.get_original_image(item['image_versions2']['candidates'][0]['url'].split('?')[0]))
+            urls.append(item['image_versions2']['candidates'][0]['url'].split('?')[0])
         item['urls'] = urls
         return item
 
