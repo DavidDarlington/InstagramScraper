@@ -13,6 +13,7 @@ import re
 import sys
 import textwrap
 import time
+import urlparse
 import warnings
 
 import concurrent.futures
@@ -577,16 +578,30 @@ class InstagramScraper(object):
         for url in item['urls']:
             base_name = url.split('/')[-1].split('?')[0]
             file_path = os.path.join(save_dir, base_name)
+            is_video = True if 'mp4' in base_name else False
 
             if not os.path.isfile(file_path):
                 with open(file_path, 'wb') as media_file:
                     try:
-                        content = self.session.get(url).content
+                        headers = {'Host': urlparse.urlparse(url).hostname}
+                        if is_video:
+                            r = self.session.get(url, headers=headers, stream=True)
+                            for chunk in r.iter_content(chunk_size=1024):
+                                if chunk:
+                                    media_file.write(chunk)
+                        else:
+                            content = self.session.get(url, headers=headers).content
+                            media_file.write(content)
                     except requests.exceptions.ConnectionError:
                         time.sleep(5)
-                        content = self.session.get(url).content
-
-                    media_file.write(content)
+                        if is_video:
+                            r = self.session.get(url, headers=headers, stream=True)
+                            for chunk in r.iter_content(chunk_size=1024):
+                                if chunk:
+                                    media_file.write(chunk)
+                        else:
+                            content = self.session.get(url, headers=headers).content
+                            media_file.write(content)
 
                 timestamp = self.__get_timestamp(item)
                 file_time = int(timestamp if timestamp else time.time())
