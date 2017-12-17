@@ -37,6 +37,11 @@ except NameError:
 
 warnings.filterwarnings('ignore')
 
+class PartialContentException(Exception):
+    pass
+
+class StatusCodeException(Exception):
+    pass
 
 class InstagramScraper(object):
     """InstagramScraper scrapes and downloads an instagram user's photos and videos"""
@@ -69,6 +74,42 @@ class InstagramScraper(object):
         if default_attr['filter']:
             self.filter = list(self.filter)
 
+    def sleep(self, secs):
+        min_delay = 1
+        for _ in range(secs // min_delay):
+            time.sleep(min_delay)
+            if self.quit: 
+                return
+        time.sleep(secs % min_delay)
+
+    def safe_get(self, *args, **kwargs):
+        # out of the box solution
+        # session.mount('https://', HTTPAdapter(max_retries=...))
+        # only covers failed DNS lookups, socket connections and connection timeouts
+        # It doesnt work when server terminate connection while response is downloaded
+        retry = 0
+        while True:
+            try:
+                response = self.session.get(timeout=CONNECT_TIMEOUT, *args, **kwargs)
+                if response.status_code not in (200, 404):
+                    raise StatusCodeException('Bad status code: {0}'.format(response.status_code))
+                if len(response.content) != int(response.headers.get('Content-Length')):
+                    raise PartialContentException('Partial response')
+                return response
+            except (KeyboardInterrupt):
+                raise
+            except (requests.exceptions.RequestException, PartialContentException, StatusCodeException) as e:
+                if retry < MAX_RETRIES:
+                    if 'url' in kwargs:
+                        url = kwargs['url']
+                    elif len(args) > 0:
+                        url = args[0]
+                    self.logger.warning('Retry after exception {0} on {1}'.format(repr(e), url))
+                    self.sleep(RETRY_TIMEOUT * 2 ** retry)
+                    retry = retry + 1
+                    continue
+                raise
+     
     def login(self):
         """Logs in to instagram."""
         self.session.headers.update({'Referer': BASE_URL})
@@ -159,21 +200,17 @@ class InstagramScraper(object):
                 self.logger.exception('Failed to query comments for shortcode ' + shortcode)
 
     def __query_comments(self, shortcode, end_cursor=''):
-        resp = self.session.get(QUERY_COMMENTS.format(shortcode, end_cursor))
+        resp = self.safe_get(QUERY_COMMENTS.format(shortcode, end_cursor))
 
-        if resp.status_code == 200:
-            payload = json.loads(resp.text)['data']['shortcode_media']
+        payload = json.loads(resp.text)['data']['shortcode_media']
 
-            if payload:
-                container = payload['edge_media_to_comment']
-                comments = [node['node'] for node in container['edges']]
-                end_cursor = container['page_info']['end_cursor']
-                return comments, end_cursor
-            else:
-                return iter([])
+        if payload:
+            container = payload['edge_media_to_comment']
+            comments = [node['node'] for node in container['edges']]
+            end_cursor = container['page_info']['end_cursor']
+            return comments, end_cursor
         else:
-            time.sleep(6)
-            return self.__query_comments(shortcode, end_cursor)
+            return iter([])
 
     def scrape_hashtag(self):
         self.__scrape_query(self.query_hashtag_gen)
@@ -181,52 +218,56 @@ class InstagramScraper(object):
     def scrape_location(self):
         self.__scrape_query(self.query_location_gen)
 
-    def __scrape_query(self, media_generator, executor=concurrent.futures.ThreadPoolExecutor(max_workers=10)):
+    def __scrape_query(self, media_generator, executor=concurrent.futures.ThreadPoolExecutor(max_workers=MAX_CONCURRENT_DOWNLOADS)):
         """Scrapes the specified value for posted media."""
-        for value in self.usernames:
-            self.posts = []
-            self.last_scraped_filemtime = 0
-            future_to_item = {}
+        self.quit = False
+        try:
+            for value in self.usernames:
+                self.posts = []
+                self.last_scraped_filemtime = 0
+                future_to_item = {}
 
-            dst = self.make_dst_dir(value)
+                dst = self.make_dst_dir(value)
 
-            if self.include_location:
-                media_exec = concurrent.futures.ThreadPoolExecutor(max_workers=5)
+                if self.include_location:
+                    media_exec = concurrent.futures.ThreadPoolExecutor(max_workers=5)
 
-            iter = 0
-            for item in tqdm.tqdm(media_generator(value), desc='Searching {0} for posts'.format(value), unit=" media",
-                                  disable=self.quiet):
-                if ((item['is_video'] is False and 'image' in self.media_types) or \
-                            (item['is_video'] is True and 'video' in self.media_types)
-                    ) and self.is_new_media(item):
-                    future = executor.submit(self.download, item, dst)
-                    future_to_item[future] = item
+                iter = 0
+                for item in tqdm.tqdm(media_generator(value), desc='Searching {0} for posts'.format(value), unit=" media",
+                                      disable=self.quiet):
+                    if ((item['is_video'] is False and 'image' in self.media_types) or \
+                                (item['is_video'] is True and 'video' in self.media_types)
+                        ) and self.is_new_media(item):
+                        future = executor.submit(self.download, item, dst)
+                        future_to_item[future] = item
 
-                if self.include_location and 'location' not in item:
-                    media_exec.submit(self.__get_location, item)
+                    if self.include_location and 'location' not in item:
+                        media_exec.submit(self.__get_location, item)
 
-                if self.comments:
-                    item['edge_media_to_comment']['data'] = list(self.query_comments_gen(item['shortcode']))
+                    if self.comments:
+                        item['edge_media_to_comment']['data'] = list(self.query_comments_gen(item['shortcode']))
 
-                if self.media_metadata or self.comments or self.include_location:
-                    self.posts.append(item)
+                    if self.media_metadata or self.comments or self.include_location:
+                        self.posts.append(item)
 
-                iter = iter + 1
-                if self.maximum != 0 and iter >= self.maximum:
-                    break
+                    iter = iter + 1
+                    if self.maximum != 0 and iter >= self.maximum:
+                        break
 
-            if future_to_item:
-                for future in tqdm.tqdm(concurrent.futures.as_completed(future_to_item), total=len(future_to_item),
-                                        desc='Downloading', disable=self.quiet):
-                    item = future_to_item[future]
+                if future_to_item:
+                    for future in tqdm.tqdm(concurrent.futures.as_completed(future_to_item), total=len(future_to_item),
+                                            desc='Downloading', disable=self.quiet):
+                        item = future_to_item[future]
 
-                    if future.exception() is not None:
-                        self.logger.warning(
-                            'Media for {0} at {1} generated an exception: {2}'.format(value, item['urls'],
-                                                                                      future.exception()))
+                        if future.exception() is not None:
+                            self.logger.warning(
+                                'Media for {0} at {1} generated an exception: {2}'.format(value, item['urls'],
+                                                                                          future.exception()))
 
-            if (self.media_metadata or self.comments or self.include_location) and self.posts:
-                self.save_json(self.posts, '{0}/{1}.json'.format(dst, value))
+                if (self.media_metadata or self.comments or self.include_location) and self.posts:
+                    self.save_json(self.posts, '{0}/{1}.json'.format(dst, value))
+        finally:
+            self.quit = True
 
     def query_hashtag_gen(self, hashtag):
         return self.__query_gen(QUERY_HASHTAG, 'hashtag', hashtag)
@@ -252,28 +293,23 @@ class InstagramScraper(object):
                 self.logger.exception('Failed to query ' + query)
 
     def __query(self, url, entity_name, query, end_cursor):
-        resp = self.session.get(url.format(query, end_cursor))
+        resp = self.safe_get(url.format(query, end_cursor))
 
-        if resp.status_code == 200:
-            payload = json.loads(resp.text)['data'][entity_name]
+        payload = json.loads(resp.text)['data'][entity_name]
+        if payload:
+            nodes = []
 
-            if payload:
-                nodes = []
+            if end_cursor == '':
+                top_posts = payload['edge_' + entity_name + '_to_top_posts']
+                nodes.extend(self._get_nodes(top_posts))
 
-                if end_cursor == '':
-                    top_posts = payload['edge_' + entity_name + '_to_top_posts']
-                    nodes.extend(self._get_nodes(top_posts))
+            posts = payload['edge_' + entity_name + '_to_media']
 
-                posts = payload['edge_' + entity_name + '_to_media']
-
-                nodes.extend(self._get_nodes(posts))
-                end_cursor = posts['page_info']['end_cursor']
-                return nodes, end_cursor
-            else:
-                return iter([])
+            nodes.extend(self._get_nodes(posts))
+            end_cursor = posts['page_info']['end_cursor']
+            return nodes, end_cursor
         else:
-            time.sleep(6)
-            return self.__query(url, entity_name, query, end_cursor)
+            return iter([])
 
     def _get_nodes(self, container):
         return [self.augment_node(node['node']) for node in container['edges']]
@@ -284,7 +320,7 @@ class InstagramScraper(object):
         details = None
         if self.include_location and 'location' not in node:
             details = self.__get_media_details(node['shortcode'])
-            node['location'] = details.get('location') if details else None
+            node['location'] = details.get('location')
 
         if 'urls' not in node:
             node['urls'] = []
@@ -311,16 +347,13 @@ class InstagramScraper(object):
         return node
 
     def __get_media_details(self, shortcode):
-        resp = self.session.get(VIEW_MEDIA_URL.format(shortcode))
+        resp = self.safe_get(VIEW_MEDIA_URL.format(shortcode))
 
-        if resp.status_code == 200:
-            try:
-                return json.loads(resp.text)['graphql']['shortcode_media']
-            except ValueError:
-                self.logger.warning('Failed to get media details for ' + shortcode)
-
-        else:
+        try:
+            return json.loads(resp.text)['graphql']['shortcode_media']
+        except ValueError:
             self.logger.warning('Failed to get media details for ' + shortcode)
+
 
     def __get_location(self, item):
         code = item.get('shortcode', item.get('code'))
@@ -329,7 +362,7 @@ class InstagramScraper(object):
             details = self.__get_media_details(code)
             item['location'] = details.get('location')
 
-    def scrape(self, executor=concurrent.futures.ThreadPoolExecutor(max_workers=10)):
+    def scrape(self, executor=concurrent.futures.ThreadPoolExecutor(max_workers=MAX_CONCURRENT_DOWNLOADS)):
         """Crawls through and downloads user's media"""
         if self.login_user and self.login_pass:
             self.login()
@@ -337,45 +370,49 @@ class InstagramScraper(object):
                 self.logger.warning('Fallback anonymous scraping disabled')
                 return
 
-        for username in self.usernames:
-            self.posts = []
-            self.last_scraped_filemtime = 0
-            future_to_item = {}
+        self.quit = False
+        try:
+            for username in self.usernames:
+                self.posts = []
+                self.last_scraped_filemtime = 0
+                future_to_item = {}
 
-            dst = self.make_dst_dir(username)
+                dst = self.make_dst_dir(username)
 
-            # Get the user metadata.
-            user = self.fetch_user(username)
+                # Get the user metadata.
+                user = self.fetch_user(username)
 
-            if user:
-                self.get_profile_pic(dst, executor, future_to_item, user, username)
-                self.get_stories(dst, executor, future_to_item, user, username)
+                if user:
+                    self.get_profile_pic(dst, executor, future_to_item, user, username)
+                    self.get_stories(dst, executor, future_to_item, user, username)
 
-            # Crawls the media and sends it to the executor.
-            try:
-                user = self.get_user(username)
+                # Crawls the media and sends it to the executor.
+                try:
+                    user = self.get_user(username)
 
-                if not user:
-                    continue
+                    if not user:
+                        continue
 
-                self.get_media(dst, executor, future_to_item, user)
+                    self.get_media(dst, executor, future_to_item, user)
 
-                # Displays the progress bar of completed downloads. Might not even pop up if all media is downloaded while
-                # the above loop finishes.
-                if future_to_item:
-                    for future in tqdm.tqdm(concurrent.futures.as_completed(future_to_item), total=len(future_to_item),
-                                            desc='Downloading', disable=self.quiet):
-                        item = future_to_item[future]
+                    # Displays the progress bar of completed downloads. Might not even pop up if all media is downloaded while
+                    # the above loop finishes.
+                    if future_to_item:
+                        for future in tqdm.tqdm(concurrent.futures.as_completed(future_to_item), total=len(future_to_item),
+                                                desc='Downloading', disable=self.quiet):
+                            item = future_to_item[future]
 
-                        if future.exception() is not None:
-                            self.logger.warning(
-                                'Media at {0} generated an exception: {1}'.format(item['urls'], future.exception()))
+                            if future.exception() is not None:
+                                self.logger.warning(
+                                    'Media at {0} generated an exception: {1}'.format(item['urls'], future.exception()))
 
-                if (self.media_metadata or self.comments or self.include_location) and self.posts:
-                    self.save_json(self.posts, '{0}/{1}.json'.format(dst, username))
-            except ValueError:
-                self.logger.error("Unable to scrape user - %s" % username)
-        self.logout()
+                    if (self.media_metadata or self.comments or self.include_location) and self.posts:
+                        self.save_json(self.posts, '{0}/{1}.json'.format(dst, username))
+                except ValueError:
+                    self.logger.error("Unable to scrape user - %s" % username)
+        finally:
+            self.quit = True
+            self.logout()            
 
     def get_profile_pic(self, dst, executor, future_to_item, user, username):
         # Download the profile pic if not the default.
@@ -411,14 +448,14 @@ class InstagramScraper(object):
         """Fetches the user's metadata."""
         url = USER_URL.format(username)
 
-        resp = self.session.get(url)
+        try:
+            resp = self.safe_get(url)
 
-        if resp.status_code == 200:
             user = json.loads(resp.text)['user']
             if user and user['is_private'] and user['media']['count'] > 0 and not user['media']['nodes']:
                 self.logger.error('User {0} is private'.format(username))
             return user
-        else:
+        except (requests.exceptions.RequestException, PartialContentException, StatusCodeException):
             self.logger.error('Error getting user details for {0}. Please verify that the user exists.'.format(username))
 
     def get_media(self, dst, executor, future_to_item, user):
@@ -465,25 +502,31 @@ class InstagramScraper(object):
 
     def fetch_user(self, username):
         """Fetches the user's metadata."""
-        resp = self.session.get(BASE_URL + username)
+        try:
+            resp = self.safe_get(BASE_URL + username)
+        except (requests.exceptions.RequestException, PartialContentException, StatusCodeException):
+            return
 
-        if resp.status_code == 200 and '_sharedData' in resp.text:
-            try:
+        try:
+            if '_sharedData' in resp.text:
                 shared_data = resp.text.split("window._sharedData = ")[1].split(";</script>")[0]
                 return json.loads(shared_data)['entry_data']['ProfilePage'][0]['user']
-            except (TypeError, KeyError, IndexError):
-                pass
+        except (TypeError, KeyError, IndexError):
+            pass
 
     def fetch_stories(self, user_id):
         """Fetches the user's stories."""
-        resp = self.session.get(STORIES_URL.format(user_id), headers={
-            'user-agent': STORIES_UA,
-            'cookie': STORIES_COOKIE.format(self.cookies['ds_user_id'], self.cookies['sessionid'])
-        })
+        try:
+            resp = self.safe_get(STORIES_URL.format(user_id), headers={
+                'user-agent': STORIES_UA,
+                'cookie': STORIES_COOKIE.format(self.cookies['ds_user_id'], self.cookies['sessionid'])
+            })
+        except (requests.exceptions.RequestException, PartialContentException, StatusCodeException):
+            return []
 
         retval = json.loads(resp.text)
 
-        if resp.status_code == 200 and retval['reel'] and 'items' in retval['reel'] and len(retval['reel']['items']) > 0:
+        if retval['reel'] and 'items' in retval['reel'] and len(retval['reel']['items']) > 0:
             return [self.set_story_url(item) for item in retval['reel']['items']]
         return []
 
@@ -507,23 +550,17 @@ class InstagramScraper(object):
                 self.logger.exception('Failed to query media for user ' + user['username'])
 
     def __query_media(self, id, end_cursor=''):
-        resp = self.session.get(QUERY_MEDIA.format(id, end_cursor))
+        resp = self.safe_get(QUERY_MEDIA.format(id, end_cursor))
 
-        if resp.status_code == 200:
-            payload = json.loads(resp.text)['data']['user']
+        payload = json.loads(resp.text)['data']['user']
 
-            if payload:
-                container = payload['edge_owner_to_timeline_media']
-                nodes = self._get_nodes(container)
-                end_cursor = container['page_info']['end_cursor']
-                return nodes, end_cursor
-            else:
-                return iter([])
+        if payload:
+            container = payload['edge_owner_to_timeline_media']
+            nodes = self._get_nodes(container)
+            end_cursor = container['page_info']['end_cursor']
+            return nodes, end_cursor
         else:
-            if resp and resp.text:
-                self.logger.warning(resp.text)
-            time.sleep(6)
-            return self.__query_media(id, end_cursor)
+            return iter([])
 
     def has_selected_media_types(self, item):
         filetypes = {'jpg': 0, 'mp4': 0}
@@ -582,37 +619,77 @@ class InstagramScraper(object):
 
     def download(self, item, save_dir='./'):
         """Downloads the media file."""
+        if self.quit:
+            return
         for url in item['urls']:
             base_name = url.split('/')[-1].split('?')[0]
             file_path = os.path.join(save_dir, base_name)
-            is_video = True if 'mp4' in base_name else False
 
             if not os.path.isfile(file_path):
-                with open(file_path, 'wb') as media_file:
+                headers = {'Host': urlparse(url).hostname}
+                
+                part_file = file_path + '.part'
+                downloaded = 0
+                total_length = None
+                with open(part_file, 'wb') as media_file:
                     try:
-                        headers = {'Host': urlparse(url).hostname}
-                        if is_video:
-                            r = self.session.get(url, headers=headers, stream=True)
-                            for chunk in r.iter_content(chunk_size=1024):
-                                if chunk:
-                                    media_file.write(chunk)
-                        else:
-                            content = self.session.get(url, headers=headers).content
-                            media_file.write(content)
-                    except requests.exceptions.ConnectionError:
-                        time.sleep(5)
-                        if is_video:
-                            r = self.session.get(url, headers=headers, stream=True)
-                            for chunk in r.iter_content(chunk_size=1024):
-                                if chunk:
-                                    media_file.write(chunk)
-                        else:
-                            content = self.session.get(url, headers=headers).content
-                            media_file.write(content)
+                        retry = 0
+                        while(True):
+                            try:
+                                downloaded_before = downloaded
+                                if downloaded_before != 0:
+                                    headers['Range'] = 'bytes={0}-{1}'.format(downloaded_before, total_length-1)
+                                
+                                response = self.session.get(url, headers=headers, stream=True, timeout=CONNECT_TIMEOUT)
+                                if response.status_code not in (200, 206):
+                                    raise StatusCodeException('Bad status code: {0}'.format(response.status_code))
+                                    
+                                if downloaded_before == 0:
+                                    total_length = int(response.headers.get('Content-Length'))
+                                    media_file.truncate(total_length)
 
-                timestamp = self.__get_timestamp(item)
-                file_time = int(timestamp if timestamp else time.time())
-                os.utime(file_path, (file_time, file_time))
+                                for chunk in response.iter_content(chunk_size=64*1024):
+                                    if chunk:
+                                        downloaded += len(chunk)
+                                        media_file.write(chunk)
+                                    if self.quit:
+                                        break
+                                
+                                if self.quit:
+                                    break
+
+                                if downloaded != total_length:
+                                    raise PartialContentException('Got first {0} bytes from {1}'.format(downloaded, total_length))
+                                
+                                break
+
+                            # In case of exception part_file is not removed on purpose, 
+                            # it is easier to exemine it later when analising logs.
+                            # Please do not add os.remove here.
+                            except (KeyboardInterrupt):
+                                raise
+                            except (requests.exceptions.RequestException, PartialContentException, StatusCodeException) as e:
+                                if downloaded - downloaded_before > 0:
+                                    # if we got some data on this iteration do not count it as a failure
+                                    self.logger.warning('Continue after exception {0} on {1}'.format(repr(e), url))
+                                    retry = 0 # the next fail will be first in a row with no data
+                                    continue
+                                if retry < MAX_RETRIES:
+                                    self.logger.warning('Retry after exception {0} on {1}'.format(repr(e), url))
+                                    self.sleep(RETRY_TIMEOUT * 2 ** retry)
+                                    if self.quit:
+                                        break
+                                    retry = retry + 1
+                                    continue
+                                raise
+                    finally:
+                        media_file.truncate(downloaded)
+                
+                if downloaded == total_length:
+                    os.rename(part_file, file_path)
+                    timestamp = self.__get_timestamp(item)
+                    file_time = int(timestamp if timestamp else time.time())
+                    os.utime(file_path, (file_time, file_time))
 
     def is_new_media(self, item):
         """Returns True if the media is new."""
