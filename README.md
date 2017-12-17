@@ -102,6 +102,8 @@ OPTIONS
 
 --comments          Saves the comment metadata associated with the posts to 
                     <destination>/<username>.json. Implicitly includes --media-metadata.
+                    
+--interactive -i    Enables interactive login challenge solving. Has 2 modes: SMS and Email
 
 --tag               Scrapes the specified hashtag for media.
 

@@ -49,7 +49,7 @@ class InstagramScraper(object):
     def __init__(self, **kwargs):
         default_attr = dict(username='', usernames=[], filename=None,
                             login_user=None, login_pass=None, login_only=False,
-                            destination='./', retain_username=False,
+                            destination='./', retain_username=False, interactive=False,
                             quiet=False, maximum=0, media_metadata=False, latest=False,
                             media_types=['image', 'video', 'story'], tag=False, location=False,
                             search_location=False, comments=False, verbose=0, include_location=False, filter=None)
@@ -129,13 +129,44 @@ class InstagramScraper(object):
             self.logger.error('Login failed for ' + self.login_user)
 
             if 'checkpoint_url' in login_text:
-                self.logger.error('Please verify your account at ' + login_text.get('checkpoint_url'))
+                checkpoint_url = login_text.get('checkpoint_url')
+                self.logger.error('Please verify your account at ' + checkpoint_url)
+
+                if self.interactive is True:
+                    self.login_challenge(checkpoint_url)
             elif 'errors' in login_text:
                 for count, error in enumerate(login_text['errors'].get('error')):
                     count += 1
                     self.logger.debug('Session error %(count)s: "%(error)s"' % locals())
             else:
                 self.logger.error(json.dumps(login_text))
+
+    def login_challenge(self, checkpoint_url):
+        self.session.headers.update({'Referer': BASE_URL})
+        req = self.session.get(BASE_URL[:-1] + checkpoint_url)
+        self.session.headers.update({'X-CSRFToken': req.cookies['csrftoken'], 'X-Instagram-AJAX': '1'})
+
+        self.session.headers.update({'Referer': BASE_URL[:-1] + checkpoint_url})
+        mode = input('Choose a challenge mode (0 - SMS, 1 - Email): ')
+        challenge_data = {'choice': mode}
+        challenge = self.session.post(BASE_URL[:-1] + checkpoint_url, data=challenge_data, allow_redirects=True)
+        self.session.headers.update({'X-CSRFToken': challenge.cookies['csrftoken'], 'X-Instagram-AJAX': '1'})
+
+        code = input('Enter code received: ')
+        code_data = {'security_code': code}
+        code = self.session.post(BASE_URL[:-1] + checkpoint_url, data=code_data, allow_redirects=True)
+        self.session.headers.update({'X-CSRFToken': code.cookies['csrftoken']})
+        self.cookies = code.cookies
+        code_text = json.loads(code.text)
+
+        if code_text.get('status') == 'ok':
+            self.logged_in = True
+        elif 'errors' in code.text:
+            for count, error in enumerate(code_text['challenge']['errors']):
+                count += 1
+                self.logger.error('Session error %(count)s: "%(error)s"' % locals())
+        else:
+            self.logger.error(json.dumps(code_text))
 
     def logout(self):
         """Logs out of instagram."""
@@ -819,6 +850,8 @@ def main():
     parser.add_argument('--location', action='store_true', default=False, help='Scrape media using a location-id')
     parser.add_argument('--search-location', action='store_true', default=False, help='Search for locations by name')
     parser.add_argument('--comments', action='store_true', default=False, help='Save post comments to json file')
+    parser.add_argument('--interactive', '-i', action='store_true', default=False,
+                        help='Enable interactive login challenge solving')
     parser.add_argument('--verbose', '-v', type=int, default=0, help='Logging verbosity level')
 
     args = parser.parse_args()
