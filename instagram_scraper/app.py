@@ -51,8 +51,9 @@ class InstagramScraper(object):
                             login_user=None, login_pass=None, login_only=False,
                             destination='./', retain_username=False, interactive=False,
                             quiet=False, maximum=0, media_metadata=False, latest=False,
-                            media_types=['image', 'video', 'story'], tag=False, location=False,
-                            search_location=False, comments=False, verbose=0, include_location=False, filter=None)
+                            media_types=['image', 'video', 'story-image', 'story-video'],
+                            tag=False, location=False, search_location=False, comments=False,
+                            verbose=0, include_location=False, filter=None)
 
         allowed_attr = list(default_attr.keys())
         default_attr.update(kwargs)
@@ -60,6 +61,14 @@ class InstagramScraper(object):
         for key in default_attr:
             if key in allowed_attr:
                 self.__dict__[key] = kwargs.get(key)
+
+        # story media type means story-image & story-video
+        if 'story' in self.media_types:
+            self.media_types.remove('story')
+            if 'story-image' not in self.media_types:
+                self.media_types.append('story-image')
+            if 'story-video' not in self.media_types:
+                self.media_types.append('story-video')
 
         # Set up a logger
         self.logger = InstagramScraper.get_logger(level=logging.DEBUG, verbose=default_attr.get('verbose'))
@@ -460,7 +469,8 @@ class InstagramScraper(object):
 
     def get_stories(self, dst, executor, future_to_item, user, username):
         """Scrapes the user's stories."""
-        if self.logged_in and 'story' in self.media_types:
+        if self.logged_in and \
+                ('story-image' in self.media_types or 'story-video' in self.media_types):
             # Get the user's stories.
             stories = self.fetch_stories(user['id'])
 
@@ -468,8 +478,9 @@ class InstagramScraper(object):
             iter = 0
             for item in tqdm.tqdm(stories, desc='Searching {0} for stories'.format(username), unit=" media",
                                   disable=self.quiet):
-                future = executor.submit(self.download, item, dst)
-                future_to_item[future] = item
+                if self.story_has_selected_media_types(item) and self.is_new_media(item):
+                    future = executor.submit(self.download, item, dst)
+                    future_to_item[future] = item
 
                 iter = iter + 1
                 if self.maximum != 0 and iter >= self.maximum:
@@ -491,7 +502,7 @@ class InstagramScraper(object):
 
     def get_media(self, dst, executor, future_to_item, user):
         """Scrapes the user's posts for media."""
-        if self.media_types == ['story']:
+        if 'image' not in self.media_types and 'video' not in self.media_types:
             return
 
         username = user['username']
@@ -604,6 +615,15 @@ class InstagramScraper(object):
 
         if ('image' in self.media_types and filetypes['jpg'] > 0) or \
                 ('video' in self.media_types and filetypes['mp4'] > 0):
+            return True
+
+        return False
+
+    def story_has_selected_media_types(self, item):
+        # media_type 1 is image, 2 is video
+        if item['media_type'] == 1 and 'story-image' in self.media_types:
+            return True
+        if item['media_type'] == 2 and 'story-video' in self.media_types:
             return True
 
         return False
