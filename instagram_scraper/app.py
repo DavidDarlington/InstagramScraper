@@ -360,7 +360,7 @@ class InstagramScraper(object):
         details = None
         if self.include_location and 'location' not in node:
             details = self.__get_media_details(node['shortcode'])
-            node['location'] = details.get('location')
+            node['location'] = details.get('location') if details else None
 
         if 'urls' not in node:
             node['urls'] = []
