@@ -241,7 +241,7 @@ class InstagramScraper(object):
             end_cursor = container['page_info']['end_cursor']
             return comments, end_cursor
         else:
-            return iter([])
+            return None, None
 
     def scrape_hashtag(self):
         self.__scrape_query(self.query_hashtag_gen)
