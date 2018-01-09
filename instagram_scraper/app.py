@@ -3,6 +3,7 @@
 
 import argparse
 import codecs
+import configparser
 import errno
 import glob
 from operator import itemgetter
@@ -51,6 +52,7 @@ class InstagramScraper(object):
                             login_user=None, login_pass=None, login_only=False,
                             destination='./', retain_username=False, interactive=False,
                             quiet=False, maximum=0, media_metadata=False, latest=False,
+                            latest_stamps=False,
                             media_types=['image', 'video', 'story-image', 'story-video'],
                             tag=False, location=False, search_location=False, comments=False,
                             verbose=0, include_location=False, filter=None)
@@ -69,6 +71,15 @@ class InstagramScraper(object):
                 self.media_types.append('story-image')
             if 'story-video' not in self.media_types:
                 self.media_types.append('story-video')
+
+        # Read latest_stamps file with ConfigParser
+        self.latest_stamps_parser = None
+        if self.latest_stamps:
+            parser = configparser.ConfigParser()
+            parser.read(self.latest_stamps)
+            self.latest_stamps_parser = parser
+            # If we have a latest_stamps file, latest must be true as it's the common flag
+            self.latest = True
 
         # Set up a logger
         self.logger = InstagramScraper.get_logger(level=logging.DEBUG, verbose=default_attr.get('verbose'))
@@ -202,13 +213,34 @@ class InstagramScraper(object):
         except OSError as err:
             if err.errno == errno.EEXIST and os.path.isdir(dst):
                 # Directory already exists
-                self.get_last_scraped_filemtime(dst)
                 pass
             else:
                 # Target dir exists as a file, or a different error
                 raise
 
+        # Resolve last scraped filetime
+        if self.latest_stamps_parser:
+            self.last_scraped_filemtime = self.get_last_scraped_timestamp(username)
+        elif os.path.isdir(dst):
+            self.last_scraped_filemtime = self.get_last_scraped_filemtime(dst)
+
         return dst
+
+    def get_last_scraped_timestamp(self, username):
+        if self.latest_stamps_parser:
+            try:
+                return self.latest_stamps_parser.getint(LATEST_STAMPS_USER_SECTION, username)
+            except configparser.Error:
+                pass
+        return 0
+
+    def set_last_scraped_timestamp(self, username, timestamp):
+        if self.latest_stamps_parser:
+            if not self.latest_stamps_parser.has_section(LATEST_STAMPS_USER_SECTION):
+                self.latest_stamps_parser.add_section(LATEST_STAMPS_USER_SECTION)
+            self.latest_stamps_parser.set(LATEST_STAMPS_USER_SECTION, username, str(timestamp))
+            with open(self.latest_stamps, 'w') as f:
+                self.latest_stamps_parser.write(f)
 
     def get_last_scraped_filemtime(self, dst):
         """Stores the last modified time of newest file in a directory."""
@@ -220,7 +252,8 @@ class InstagramScraper(object):
 
         if list_of_files:
             latest_file = max(list_of_files, key=os.path.getmtime)
-            self.last_scraped_filemtime = int(os.path.getmtime(latest_file))
+            return int(os.path.getmtime(latest_file))
+        return 0
 
     def query_comments_gen(self, shortcode, end_cursor=''):
         """Generator for comments."""
@@ -265,6 +298,7 @@ class InstagramScraper(object):
             for value in self.usernames:
                 self.posts = []
                 self.last_scraped_filemtime = 0
+                greatest_timestamp = 0
                 future_to_item = {}
 
                 dst = self.make_dst_dir(value)
@@ -275,9 +309,9 @@ class InstagramScraper(object):
                 iter = 0
                 for item in tqdm.tqdm(media_generator(value), desc='Searching {0} for posts'.format(value), unit=" media",
                                       disable=self.quiet):
-                    if ((item['is_video'] is False and 'image' in self.media_types) or \
-                                (item['is_video'] is True and 'video' in self.media_types)
-                        ) and self.is_new_media(item):
+                    if ((item['is_video'] is False and 'image' in self.media_types) or
+                        (item['is_video'] is True and 'video' in self.media_types)) \
+                            and self.is_new_media(item):
                         future = executor.submit(self.download, item, dst)
                         future_to_item[future] = item
 
@@ -295,7 +329,8 @@ class InstagramScraper(object):
                         break
 
                 if future_to_item:
-                    for future in tqdm.tqdm(concurrent.futures.as_completed(future_to_item), total=len(future_to_item),
+                    for future in tqdm.tqdm(concurrent.futures.as_completed(future_to_item),
+                                            total=len(future_to_item),
                                             desc='Downloading', disable=self.quiet):
                         item = future_to_item[future]
 
@@ -303,6 +338,13 @@ class InstagramScraper(object):
                             self.logger.warning(
                                 'Media for {0} at {1} generated an exception: {2}'.format(value, item['urls'],
                                                                                           future.exception()))
+                        else:
+                            timestamp = self.__get_timestamp(item)
+                            if timestamp > greatest_timestamp:
+                                greatest_timestamp = timestamp
+                # Even bother saving it?
+                if greatest_timestamp > self.last_scraped_filemtime:
+                    self.set_last_scraped_timestamp(value, greatest_timestamp)
 
                 if (self.media_metadata or self.comments or self.include_location) and self.posts:
                     self.save_json(self.posts, '{0}/{1}.json'.format(dst, value))
@@ -415,6 +457,7 @@ class InstagramScraper(object):
             for username in self.usernames:
                 self.posts = []
                 self.last_scraped_filemtime = 0
+                greatest_timestamp = 0
                 future_to_item = {}
 
                 dst = self.make_dst_dir(username)
@@ -445,6 +488,13 @@ class InstagramScraper(object):
                             if future.exception() is not None:
                                 self.logger.warning(
                                     'Media at {0} generated an exception: {1}'.format(item['urls'], future.exception()))
+                            else:
+                                timestamp = self.__get_timestamp(item)
+                                if timestamp > greatest_timestamp:
+                                    greatest_timestamp = timestamp
+                    # Even bother saving it?
+                    if greatest_timestamp > self.last_scraped_filemtime:
+                        self.set_last_scraped_timestamp(username, greatest_timestamp)
 
                     if (self.media_metadata or self.comments or self.include_location) and self.posts:
                         self.save_json(self.posts, '{0}/{1}.json'.format(dst, username))
@@ -580,7 +630,7 @@ class InstagramScraper(object):
             try:
                 while True:
                     for item in media:
-                        if self.latest and self.last_scraped_filemtime >= self.__get_timestamp(item):
+                        if not self.is_new_media(item):
                             return
                         yield item
 
@@ -744,13 +794,24 @@ class InstagramScraper(object):
 
     def is_new_media(self, item):
         """Returns True if the media is new."""
-        return self.latest is False or self.last_scraped_filemtime == 0 or \
-               ('created_time' not in item and 'date' not in item and 'taken_at_timestamp' not in item) or \
-               (int(self.__get_timestamp(item)) > self.last_scraped_filemtime)
+        if self.latest is False or self.last_scraped_filemtime == 0:
+            return True
+
+        current_timestamp = self.__get_timestamp(item)
+        return current_timestamp > 0 and current_timestamp >= self.last_scraped_filemtime
 
     @staticmethod
     def __get_timestamp(item):
-        return item.get('taken_at_timestamp', item.get('created_time', item.get('taken_at', item.get('date'))))
+        if item:
+            for key in ['taken_at_timestamp', 'created_time', 'taken_at', 'date']:
+                found = item.get(key, 0)
+                try:
+                    found = int(found)
+                    if found > 1:  # >1 to ignore any boolean casts
+                        return found
+                except ValueError:
+                    pass
+        return 0
 
     @staticmethod
     def __get_file_ext(path):
@@ -865,6 +926,8 @@ def main():
     parser.add_argument('--media-types', '--media_types', '-t', nargs='+', default=['image', 'video', 'story'],
                         help='Specify media types to scrape')
     parser.add_argument('--latest', action='store_true', default=False, help='Scrape new media since the last scrape')
+    parser.add_argument('--latest-stamps', '--latest_stamps', default=None,
+                        help='Scrape new media since timestamps by user in specified file')
     parser.add_argument('--tag', action='store_true', default=False, help='Scrape media using a hashtag')
     parser.add_argument('--filter', default=None, help='Filter by tags in user posts', nargs='*')
     parser.add_argument('--location', action='store_true', default=False, help='Scrape media using a location-id')

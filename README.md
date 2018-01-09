@@ -89,6 +89,13 @@ OPTIONS
 --latest            Scrape only new media since the last scrape. Uses the last modified
                     time of the latest media item in the destination directory to compare.
 
+--latest-stamps     Specify a file to save the timestamps of latest media scraped by user.
+                    This works similarly to `--latest` except the file specified by
+                    `--latest-stamps` will store the last modified time instead of using 
+                    timestamps of media items in the destination directory. 
+                    This allows the destination directories to be emptied whilst 
+                    still maintaining history.
+
 --quiet       -q    Be quiet while scraping.
 
 --maximum     -m    Maximum number of items to scrape.
