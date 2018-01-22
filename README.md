@@ -112,6 +112,8 @@ OPTIONS
                     
 --interactive -i    Enables interactive login challenge solving. Has 2 modes: SMS and Email
 
+--retry-forever     Retry download attempts endlessly when errors are received
+
 --tag               Scrapes the specified hashtag for media.
 
 --filter            Scrapes the specified hashtag within a user's media.
