@@ -42,7 +42,6 @@ warnings.filterwarnings('ignore')
 input_lock = threading.RLock()
 
 class LockedStream(object):
-    """Dummy file-like that will write to tqdm"""
     file = None
     def __init__(self, file):
         self.file = file
@@ -826,7 +825,7 @@ class InstagramScraper(object):
                                 with self.session.get(url, headers=headers, stream=True, timeout=CONNECT_TIMEOUT) as response:
                                     if response.status_code == 404:
                                         #instagram don't lie on this
-                                        return
+                                        break
                                     response.raise_for_status()
                                         
                                     if downloaded_before == 0:
@@ -871,7 +870,7 @@ class InstagramScraper(object):
                                         retry = 0
                                         continue
                                     elif keep_trying == False:
-                                        return
+                                        break
                                 raise
                     finally:
                         media_file.truncate(downloaded)
