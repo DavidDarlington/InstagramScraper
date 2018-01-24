@@ -782,6 +782,8 @@ class InstagramScraper(object):
 
     def get_original_image(self, url):
         """Gets the full-size image from the specified url."""
+        # these path parts somehow prevent us from changing the rest of media url
+        url = re.sub(r'/vp/[0-9A-Fa-f]{32}/[0-9A-Fa-f]{8}/', '/', url)
         # remove dimensions to get largest image
         url = re.sub(r'/[sp]\d{3,}x\d{3,}/', '/', url)
         # get non-square image if one exists
