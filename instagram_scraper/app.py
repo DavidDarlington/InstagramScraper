@@ -92,7 +92,7 @@ class InstagramScraper(object):
 
         for key in default_attr:
             if key in allowed_attr:
-                self.__dict__[key] = kwargs.get(key)
+                self.__dict__[key] = default_attr.get(key)
 
         # story media type means story-image & story-video
         if 'story' in self.media_types:
