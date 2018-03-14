@@ -627,8 +627,8 @@ class InstagramScraper(object):
         resp = self.get_json(url)
 
         if resp is not None:
-            user = json.loads(resp)['user']
-            if user and user['is_private'] and user['media']['count'] > 0 and not user['media']['nodes']:
+            user = json.loads(resp)['graphql']['user']
+            if user and user['is_private'] and user['edge_owner_to_timeline_media']['count'] > 0 and not user['edge_owner_to_timeline_media']['edges']:
                 self.logger.error('User {0} is private'.format(username))
             return user
         else:
@@ -683,7 +683,7 @@ class InstagramScraper(object):
         if resp is not None and '_sharedData' in resp:
             try:
                 shared_data = resp.split("window._sharedData = ")[1].split(";</script>")[0]
-                return json.loads(shared_data)['entry_data']['ProfilePage'][0]['user']
+                return json.loads(shared_data)['entry_data']['ProfilePage'][0]['graphql']['user']
             except (TypeError, KeyError, IndexError):
                 pass
 
