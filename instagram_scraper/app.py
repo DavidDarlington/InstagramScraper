@@ -636,7 +636,7 @@ class InstagramScraper(object):
 
     def get_media(self, dst, executor, future_to_item, user):
         """Scrapes the user's posts for media."""
-        if 'image' not in self.media_types and 'video' not in self.media_types:
+        if 'image' not in self.media_types and 'video' not in self.media_types and 'none' not in self.media_types:
             return
 
         username = user['username']
