@@ -589,11 +589,26 @@ class InstagramScraper(object):
             self.logout()            
 
     def get_profile_pic(self, dst, executor, future_to_item, user, username):
-        # Download the profile pic if not the default.
-        if 'image' in self.media_types and 'profile_pic_url_hd' in user \
-                and '11906329_960233084022564_1448528159' not in user['profile_pic_url_hd']:
-            item = {'urls': [user['profile_pic_url_hd']],
-                    'created_time': 1286323200}
+        if 'image' not in self.media_types:
+            return
+
+        url = USER_INFO.format(user['id'])
+        resp = self.get_json(url)
+
+        if resp is None:
+            self.logger.error('Error getting user info for {0}'.format(username))
+            return
+
+        user_info = json.loads(resp)['user']
+        profile_pic_url = None
+
+        if 'hd_profile_pic_url_info' in user_info:
+            profile_pic_url = user_info['hd_profile_pic_url_info']['url']
+        elif 'hd_profile_pic_versions' in user_info and len(user_info['hd_profile_pic_versions']) > 0:
+            profile_pic_url = user_info['hd_profile_pic_versions'][-1]['url']
+
+        if profile_pic_url and '11906329_960233084022564_1448528159' not in profile_pic_url:
+            item = {'urls': [user['profile_pic_url_hd']], 'created_time': 1286323200}
 
             if self.latest is False or os.path.isfile(dst + '/' + item['urls'][0].split('/')[-1]) is False:
                 for item in tqdm.tqdm([item], desc='Searching {0} for profile pic'.format(username), unit=" images",
