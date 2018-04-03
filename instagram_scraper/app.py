@@ -600,15 +600,18 @@ class InstagramScraper(object):
             return
 
         user_info = json.loads(resp)['user']
-        profile_pic_url = None
+        profile_pic_url = user['profile_pic_url_hd']
 
         if 'hd_profile_pic_url_info' in user_info:
             profile_pic_url = user_info['hd_profile_pic_url_info']['url']
         elif 'hd_profile_pic_versions' in user_info and len(user_info['hd_profile_pic_versions']) > 0:
             profile_pic_url = user_info['hd_profile_pic_versions'][-1]['url']
+        else:
+            self.logger.warning('Failed to get high resolution profile picture for {0}'.format(username))
+            
 
         if profile_pic_url and '11906329_960233084022564_1448528159' not in profile_pic_url:
-            item = {'urls': [user['profile_pic_url_hd']], 'created_time': 1286323200}
+            item = {'urls': [profile_pic_url], 'created_time': 1286323200}
 
             if self.latest is False or os.path.isfile(dst + '/' + item['urls'][0].split('/')[-1]) is False:
                 for item in tqdm.tqdm([item], desc='Searching {0} for profile pic'.format(username), unit=" images",
