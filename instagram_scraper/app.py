@@ -600,24 +600,28 @@ class InstagramScraper(object):
             return
 
         user_info = json.loads(resp)['user']
-        profile_pic_url = user['profile_pic_url_hd']
 
-        if 'hd_profile_pic_url_info' in user_info:
-            profile_pic_url = user_info['hd_profile_pic_url_info']['url']
-        elif 'hd_profile_pic_versions' in user_info and len(user_info['hd_profile_pic_versions']) > 0:
-            profile_pic_url = user_info['hd_profile_pic_versions'][-1]['url']
-        else:
+        if user_info['has_anonymous_profile_picture']:
+            return
+
+        try:
+            profile_pic_urls = [
+                user_info['hd_profile_pic_url_info']['url'],
+                user_info['hd_profile_pic_versions'][-1]['url'],
+            ]
+
+            profile_pic_url = next(url for url in profile_pic_urls if url is not None)
+        except (KeyError, IndexError, StopIteration):
             self.logger.warning('Failed to get high resolution profile picture for {0}'.format(username))
-            
+            profile_pic_url = user_info['profile_pic_url']
 
-        if profile_pic_url and '11906329_960233084022564_1448528159' not in profile_pic_url:
-            item = {'urls': [profile_pic_url], 'created_time': 1286323200}
+        item = {'urls': [profile_pic_url], 'created_time': 1286323200}
 
-            if self.latest is False or os.path.isfile(dst + '/' + item['urls'][0].split('/')[-1]) is False:
-                for item in tqdm.tqdm([item], desc='Searching {0} for profile pic'.format(username), unit=" images",
-                                      ncols=0, disable=self.quiet):
-                    future = executor.submit(self.worker_wrapper, self.download, item, dst)
-                    future_to_item[future] = item
+        if self.latest is False or os.path.isfile(dst + '/' + item['urls'][0].split('/')[-1]) is False:
+            for item in tqdm.tqdm([item], desc='Searching {0} for profile pic'.format(username), unit=" images",
+                                  ncols=0, disable=self.quiet):
+                future = executor.submit(self.worker_wrapper, self.download, item, dst)
+                future_to_item[future] = item
 
     def get_stories(self, dst, executor, future_to_item, user, username):
         """Scrapes the user's stories."""
