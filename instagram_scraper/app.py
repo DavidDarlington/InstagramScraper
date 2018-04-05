@@ -613,7 +613,7 @@ class InstagramScraper(object):
             profile_pic_url = next(url for url in profile_pic_urls if url is not None)
         except (KeyError, IndexError, StopIteration):
             self.logger.warning('Failed to get high resolution profile picture for {0}'.format(username))
-            profile_pic_url = user_info['profile_pic_url']
+            profile_pic_url = user['profile_pic_url_hd']
 
         item = {'urls': [profile_pic_url], 'created_time': 1286323200}
 
