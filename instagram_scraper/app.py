@@ -117,6 +117,7 @@ class InstagramScraper(object):
         self.posts = []
         self.session = requests.Session()
         self.session.headers = {'user-agent': CHROME_WIN_UA}
+        self.session.cookies.set('ig_pr', '1')
 
         self.cookies = None
         self.logged_in = False
