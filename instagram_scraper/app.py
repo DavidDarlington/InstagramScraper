@@ -220,7 +220,7 @@ class InstagramScraper(object):
 
             if 'checkpoint_url' in login_text:
                 checkpoint_url = login_text.get('checkpoint_url')
-                self.logger.error('Please verify your account at ' + checkpoint_url)
+                self.logger.error('Please verify your account at ' + BASE_URL[0:-1] + checkpoint_url)
 
                 if self.interactive is True:
                     self.login_challenge(checkpoint_url)
