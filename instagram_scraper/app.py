@@ -9,6 +9,7 @@ import glob
 from operator import itemgetter
 import json
 import logging.config
+import hashlib
 import os
 import re
 import sys
@@ -79,7 +80,7 @@ class InstagramScraper(object):
 
     def __init__(self, **kwargs):
         default_attr = dict(username='', usernames=[], filename=None,
-                            login_user=None, login_pass=None, login_only=False,
+                            login_user=None, login_pass=None,
                             destination='./', retain_username=False, interactive=False,
                             quiet=False, maximum=0, media_metadata=False, latest=False,
                             latest_stamps=False,
@@ -118,12 +119,15 @@ class InstagramScraper(object):
         self.session = requests.Session()
         self.session.headers = {'user-agent': CHROME_WIN_UA}
         self.session.cookies.set('ig_pr', '1')
+        self.rhx_gis = None
 
         self.cookies = None
         self.logged_in = False
         self.last_scraped_filemtime = 0
         if default_attr['filter']:
             self.filter = list(self.filter)
+
+        self.quit = False
 
     def sleep(self, secs):
         min_delay = 1
@@ -197,9 +201,10 @@ class InstagramScraper(object):
     def get_json(self, *args, **kwargs):
         """Retrieve text from url. Return text as string or None if no data present """
         resp = self.safe_get(*args, **kwargs)
+
         if resp is not None:
             return resp.text
-     
+
     def login(self):
         """Logs in to instagram."""
         self.session.headers.update({'Referer': BASE_URL})
@@ -215,6 +220,7 @@ class InstagramScraper(object):
 
         if login_text.get('authenticated') and login.status_code == 200:
             self.logged_in = True
+            self.rhx_gis = self.get_shared_data()['rhx_gis']
         else:
             self.logger.error('Login failed for ' + self.login_user)
 
@@ -343,7 +349,10 @@ class InstagramScraper(object):
                 self.logger.exception('Failed to query comments for shortcode ' + shortcode)
 
     def __query_comments(self, shortcode, end_cursor=''):
-        resp = self.get_json(QUERY_COMMENTS.format(shortcode, end_cursor))
+        params = QUERY_COMMENTS_VARS.format(shortcode, end_cursor)
+        self.update_ig_gis_header(params)
+
+        resp = self.get_json(QUERY_COMMENTS.format(params))
         
         if resp is not None:
             payload = json.loads(resp)['data']['shortcode_media']
@@ -432,14 +441,14 @@ class InstagramScraper(object):
             self.quit = True
 
     def query_hashtag_gen(self, hashtag):
-        return self.__query_gen(QUERY_HASHTAG, 'hashtag', hashtag)
+        return self.__query_gen(QUERY_HASHTAG, QUERY_HASHTAG_VARS, 'hashtag', hashtag)
 
     def query_location_gen(self, location):
-        return self.__query_gen(QUERY_LOCATION, 'location', location)
+        return self.__query_gen(QUERY_LOCATION, QUERY_LOCATION_VARS, 'location', location)
 
-    def __query_gen(self, url, entity_name, query, end_cursor=''):
+    def __query_gen(self, url, variables, entity_name, query, end_cursor=''):
         """Generator for hashtag and location."""
-        nodes, end_cursor = self.__query(url, entity_name, query, end_cursor)
+        nodes, end_cursor = self.__query(url, variables, entity_name, query, end_cursor)
 
         if nodes:
             try:
@@ -448,14 +457,17 @@ class InstagramScraper(object):
                         yield node
 
                     if end_cursor:
-                        nodes, end_cursor = self.__query(url, entity_name, query, end_cursor)
+                        nodes, end_cursor = self.__query(url, variables, entity_name, query, end_cursor)
                     else:
                         return
             except ValueError:
                 self.logger.exception('Failed to query ' + query)
 
-    def __query(self, url, entity_name, query, end_cursor):
-        resp = self.get_json(url.format(query, end_cursor))
+    def __query(self, url, variables, entity_name, query, end_cursor):
+        params = variables.format(query, end_cursor)
+        self.update_ig_gis_header(params)
+
+        resp = self.get_json(url.format(params))
 
         if resp is not None:
             payload = json.loads(resp)['data'][entity_name]
@@ -531,13 +543,6 @@ class InstagramScraper(object):
 
     def scrape(self, executor=concurrent.futures.ThreadPoolExecutor(max_workers=MAX_CONCURRENT_DOWNLOADS)):
         """Crawls through and downloads user's media"""
-        if self.login_user and self.login_pass:
-            self.login()
-            if not self.logged_in and self.login_only:
-                self.logger.warning('Fallback anonymous scraping disabled')
-                return
-
-        self.quit = False
         try:
             for username in self.usernames:
                 self.posts = []
@@ -548,18 +553,23 @@ class InstagramScraper(object):
                 dst = self.make_dst_dir(username)
 
                 # Get the user metadata.
-                user = self.fetch_user(username)
+                shared_data = self.get_shared_data(username)
+                user = shared_data['entry_data']['ProfilePage'][0]['graphql']['user']
 
-                if user:
-                    self.get_profile_pic(dst, executor, future_to_item, user, username)
-                    self.get_stories(dst, executor, future_to_item, user, username)
+                if user and user['is_private'] and user['edge_owner_to_timeline_media']['count'] > 0 and not \
+                    user['edge_owner_to_timeline_media']['edges']:
+                        self.logger.error('User {0} is private'.format(username))
+                elif not user:
+                    self.logger.error('Error getting user details for {0}. Please verify that the user exists.'.format(username))
+                    continue
+
+                self.rhx_gis = shared_data['rhx_gis']
+
+                self.get_profile_pic(dst, executor, future_to_item, user, username)
+                self.get_stories(dst, executor, future_to_item, user, username)
 
                 # Crawls the media and sends it to the executor.
                 try:
-                    user = self.get_user(username)
-
-                    if not user:
-                        continue
 
                     self.get_media(dst, executor, future_to_item, user)
 
@@ -643,20 +653,6 @@ class InstagramScraper(object):
                 if self.maximum != 0 and iter >= self.maximum:
                     break
 
-    def get_user(self, username):
-        """Fetches the user's metadata."""
-        url = USER_URL.format(username)
-
-        resp = self.get_json(url)
-
-        if resp is not None:
-            user = json.loads(resp)['graphql']['user']
-            if user and user['is_private'] and user['edge_owner_to_timeline_media']['count'] > 0 and not user['edge_owner_to_timeline_media']['edges']:
-                self.logger.error('User {0} is private'.format(username))
-            return user
-        else:
-            self.logger.error('Error getting user details for {0}. Please verify that the user exists.'.format(username))
-
     def get_media(self, dst, executor, future_to_item, user):
         """Scrapes the user's posts for media."""
         if 'image' not in self.media_types and 'video' not in self.media_types and 'none' not in self.media_types:
@@ -699,14 +695,14 @@ class InstagramScraper(object):
             if self.maximum != 0 and iter >= self.maximum:
                 break
 
-    def fetch_user(self, username):
+    def get_shared_data(self, username=''):
         """Fetches the user's metadata."""
         resp = self.get_json(BASE_URL + username)
 
         if resp is not None and '_sharedData' in resp:
             try:
                 shared_data = resp.split("window._sharedData = ")[1].split(";</script>")[0]
-                return json.loads(shared_data)['entry_data']['ProfilePage'][0]['graphql']['user']
+                return json.loads(shared_data)
             except (TypeError, KeyError, IndexError):
                 pass
 
@@ -744,7 +740,10 @@ class InstagramScraper(object):
                 self.logger.exception('Failed to query media for user ' + user['username'])
 
     def __query_media(self, id, end_cursor=''):
-        resp = self.get_json(QUERY_MEDIA.format(id, end_cursor))
+        params = QUERY_MEDIA_VARS.format(id, end_cursor)
+        self.update_ig_gis_header(params)
+
+        resp = self.get_json(QUERY_MEDIA.format(params))
 
         if resp is not None:
             payload = json.loads(resp)['data']['user']
@@ -756,6 +755,22 @@ class InstagramScraper(object):
                 return nodes, end_cursor
 
         return None, None
+
+    def get_ig_gis(self, rhx_gis, csrf_token, params):
+        data = rhx_gis + ":" + csrf_token + ":" + CHROME_WIN_UA + ":" + params
+        if sys.version_info.major >= 3:
+            return hashlib.md5(data.encode('utf-8')).hexdigest()
+        else:
+            return hashlib.md5(data).hexdigest()
+
+    def update_ig_gis_header(self, params):
+        self.session.headers.update({
+            'x-instagram-gis': self.get_ig_gis(
+                self.rhx_gis,
+                self.cookies['csrftoken'],
+                params
+            )
+        })
 
     def has_selected_media_types(self, item):
         filetypes = {'jpg': 0, 'mp4': 0}
@@ -1026,10 +1041,8 @@ def main():
 
     parser.add_argument('username', help='Instagram user(s) to scrape', nargs='*')
     parser.add_argument('--destination', '-d', default='./', help='Download destination')
-    parser.add_argument('--login-user', '--login_user', '-u', default=None, help='Instagram login user')
-    parser.add_argument('--login-pass', '--login_pass', '-p', default=None, help='Instagram login password')
-    parser.add_argument('--login-only', '--login_only', '-l', default=False, action='store_true',
-                        help='Disable anonymous fallback if login fails')
+    parser.add_argument('--login-user', '--login_user', '-u', default=None, help='Instagram login user', required=True)
+    parser.add_argument('--login-pass', '--login_pass', '-p', default=None, help='Instagram login password', required=True)
     parser.add_argument('--filename', '-f', help='Path to a file containing a list of users to scrape')
     parser.add_argument('--quiet', '-q', default=False, action='store_true', help='Be quiet while scraping')
     parser.add_argument('--maximum', '-m', type=int, default=0, help='Maximum number of items to scrape')
@@ -1089,6 +1102,8 @@ def main():
         MAX_RETRIES = sys.maxsize
 
     scraper = InstagramScraper(**vars(args))
+
+    scraper.login()
 
     if args.tag:
         scraper.scrape_hashtag()
