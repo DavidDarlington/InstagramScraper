@@ -554,14 +554,15 @@ class InstagramScraper(object):
 
                 # Get the user metadata.
                 shared_data = self.get_shared_data(username)
-                user = shared_data['entry_data']['ProfilePage'][0]['graphql']['user']
+                user = self.deep_get(shared_data, 'entry_data.ProfilePage[0].graphql.user')
 
-                if user and user['is_private'] and user['edge_owner_to_timeline_media']['count'] > 0 and not \
+                if not user:
+                    self.logger.error(
+                        'Error getting user details for {0}. Please verify that the user exists.'.format(username))
+                    continue
+                elif user and user['is_private'] and user['edge_owner_to_timeline_media']['count'] > 0 and not \
                     user['edge_owner_to_timeline_media']['edges']:
                         self.logger.error('User {0} is private'.format(username))
-                elif not user:
-                    self.logger.error('Error getting user details for {0}. Please verify that the user exists.'.format(username))
-                    continue
 
                 self.rhx_gis = shared_data['rhx_gis']
 
@@ -1017,6 +1018,33 @@ class InstagramScraper(object):
     def parse_delimited_str(input):
         """Parse the string input as a list of delimited tokens."""
         return re.findall(r'[^,;\s]+', input)
+
+    def deep_get(self, dict, path):
+        def _split_indexes(key):
+            split_array_index = re.compile(r'[.\[\]]+')  # ['foo', '0']
+            return filter(None, split_array_index.split(key))
+
+        ends_with_index = re.compile(r'\[(.*?)\]$')  # foo[0]
+
+        keylist = path.split('.')
+
+        val = dict
+
+        for key in keylist:
+            try:
+                if ends_with_index.search(key):
+                    for prop in _split_indexes(key):
+                        if prop.isdigit():
+                            val = val[int(prop)]
+                        else:
+                            val = val[prop]
+                else:
+                    val = val[key]
+            except (KeyError, IndexError, TypeError):
+                return None
+
+        return val
+
 
 
 def main():
