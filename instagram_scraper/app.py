@@ -318,6 +318,22 @@ class InstagramScraper(object):
             with open(self.latest_stamps, 'w') as f:
                 self.latest_stamps_parser.write(f)
 
+    def get_last_scraped_profile_pic(self, username):
+        if self.latest_stamps_parser:
+            try:
+                return self.latest_stamps_parser.get(LATEST_STAMPS_PROFILE_PIC_SECTION, username)
+            except configparser.Error:
+                pass
+        return ""
+
+    def set_last_scraped_profile_pic(self, username, profile_pic):
+        if self.latest_stamps_parser:
+            if not self.latest_stamps_parser.has_section(LATEST_STAMPS_PROFILE_PIC_SECTION):
+                self.latest_stamps_parser.add_section(LATEST_STAMPS_PROFILE_PIC_SECTION)
+            self.latest_stamps_parser.set(LATEST_STAMPS_PROFILE_PIC_SECTION, username, profile_pic)
+            with open(self.latest_stamps, 'w') as f:
+                self.latest_stamps_parser.write(f)
+
     def get_last_scraped_filemtime(self, dst):
         """Stores the last modified time of newest file in a directory."""
         list_of_files = []
@@ -629,11 +645,19 @@ class InstagramScraper(object):
 
         item = {'urls': [profile_pic_url], 'created_time': 1286323200}
 
-        if self.latest is False or os.path.isfile(dst + '/' + item['urls'][0].split('/')[-1]) is False:
+        profile_pic_basename = item['urls'][0].split('/')[-1]
+        if self.latest is False or self.needs_to_download_profile_pic(username, dst, profile_pic_basename) is True:
             for item in tqdm.tqdm([item], desc='Searching {0} for profile pic'.format(username), unit=" images",
                                   ncols=0, disable=self.quiet):
                 future = executor.submit(self.worker_wrapper, self.download, item, dst)
                 future_to_item[future] = item
+                self.set_last_scraped_profile_pic(username, profile_pic_basename)
+
+    def needs_to_download_profile_pic(self, username, dst, profile_pic):
+        return os.path.isfile(dst + '/' + profile_pic) is False and self.profile_pic_seen(username, profile_pic) is False
+
+    def profile_pic_seen(self, username, profile_pic):
+        return profile_pic == self.get_last_scraped_profile_pic(username)
 
     def get_stories(self, dst, executor, future_to_item, user, username):
         """Scrapes the user's stories."""
