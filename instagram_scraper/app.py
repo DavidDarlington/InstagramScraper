@@ -951,7 +951,7 @@ class InstagramScraper(object):
             return True
 
         current_timestamp = self.__get_timestamp(item)
-        return current_timestamp > 0 and current_timestamp >= self.last_scraped_filemtime
+        return current_timestamp > 0 and current_timestamp > self.last_scraped_filemtime
 
     @staticmethod
     def __get_timestamp(item):
