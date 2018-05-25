@@ -208,7 +208,7 @@ class InstagramScraper(object):
 
     def login(self):
         """Logs in to instagram."""
-        self.session.headers.update({'Referer': BASE_URL})
+        self.session.headers.update({'Referer': BASE_URL, 'user-agent': STORIES_UA})
         req = self.session.get(BASE_URL)
 
         self.session.headers.update({'X-CSRFToken': req.cookies['csrftoken']})
