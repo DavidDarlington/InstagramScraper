@@ -119,7 +119,24 @@ OPTIONS
 
 --search-location   Search for a location by name. Useful for determining the location-id of 
                     a specific place.
-
+                    
+--template -T       Customize and format each file's name.
+                    Default: {urlname}
+                    Options:
+                    {username}: Scraped user
+                    {shortcode}: Post shortcode (profile_pic and story are empty)
+                    {urlname}: Original file name from url.
+                    {datetime}: Date and time of upload. (Format: 20180101 01h01m01s)
+                    {date}: Date of upload. (Format: 20180101)
+                    {year}: Year of uplaod. (Format: 2018)
+                    {month}: Month of upload. (Format: 01-12)
+                    {day}: Day of upload. (Format: 01-31)
+                    {h}: Hour of upload. (Format: 00-23h)
+                    {m}: Minute of upload. (Format: 00-59m)
+                    {s}: Second of upload. (Format: 00-59s)
+                    
+                    If the template is invalid, it will revert to the default.
+                    Does not work with --tag and --location.
 ```
 
 Develop
