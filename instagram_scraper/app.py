@@ -878,6 +878,7 @@ class InstagramScraper(object):
                                     if downloaded_before == 0:
                                         content_length = response.headers.get('Content-Length')
                                         if content_length is None:
+                                            
                                             raise PartialContentException('Partial response')
                                         total_length = int(content_length)
                                         media_file.truncate(total_length)
@@ -931,12 +932,13 @@ class InstagramScraper(object):
     def templatefilename(self, item):
 
         for url in item['urls']:
-            filetype = url.split('.')[-1]
+            url = url.split('?')[0]
+            filename, extension = os.path.splitext(os.path.split(url)[1])
             try:
                 template = self.template
                 template_values = {
                                     'username' : item['username'],
-                                   'urlname': url.split('/')[-1].split('.')[-2],
+                                   'urlname': filename,
                                     'shortcode': str(item['shortcode']),
                                    'datetime': time.strftime('%Y%m%d %Hh%Mm%Ss',
                                                              time.localtime(self.__get_timestamp(item))),
@@ -948,10 +950,10 @@ class InstagramScraper(object):
                                    'm': time.strftime('%Mm', time.localtime(self.__get_timestamp(item))),
                                    's': time.strftime('%Ss', time.localtime(self.__get_timestamp(item)))}
 
-                customfilename = str(template.format(**template_values) + '.' + filetype)
+                customfilename = str(template.format(**template_values) + extension)
                 yield url, customfilename
             except KeyError:
-                customfilename = str(url.split('/')[-1].split('.')[-2] + '.' + filetype)
+                customfilename = str(filename + extension)
                 yield url, customfilename
 
     def is_new_media(self, item):
@@ -976,9 +978,9 @@ class InstagramScraper(object):
         return 0
 
     @staticmethod
-    def __get_file_ext(path):
-        return os.path.splitext(path)[1][1:].strip().lower()
-
+    def __get_file_ext(url):
+        return os.path.splitext(urlparse(url).path)[1][1:].strip().lower()
+    
     @staticmethod
     def __search(query):
         resp = requests.get(SEARCH_URL.format(query))
