@@ -878,7 +878,6 @@ class InstagramScraper(object):
                                     if downloaded_before == 0:
                                         content_length = response.headers.get('Content-Length')
                                         if content_length is None:
-                                            
                                             raise PartialContentException('Partial response')
                                         total_length = int(content_length)
                                         media_file.truncate(total_length)
@@ -980,7 +979,7 @@ class InstagramScraper(object):
     @staticmethod
     def __get_file_ext(url):
         return os.path.splitext(urlparse(url).path)[1][1:].strip().lower()
-    
+
     @staticmethod
     def __search(query):
         resp = requests.get(SEARCH_URL.format(query))
