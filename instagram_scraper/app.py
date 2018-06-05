@@ -717,15 +717,12 @@ class InstagramScraper(object):
 
     def fetch_stories(self, user_id):
         """Fetches the user's stories."""
-        resp = self.get_json(STORIES_URL.format(user_id), headers={
-            'user-agent': STORIES_UA,
-            'cookie': STORIES_COOKIE.format(self.cookies['ds_user_id'], self.cookies['sessionid'])
-        })
+        resp = self.get_json(STORIES_URL.format(user_id))
 
         if resp is not None:
             retval = json.loads(resp)
-            if retval['reel'] and 'items' in retval['reel'] and len(retval['reel']['items']) > 0:
-                return [self.set_story_url(item) for item in retval['reel']['items']]
+            if retval['data'] and 'reels_media' in retval['data'] and len(retval['data']['reels_media']) > 0 and len(retval['data']['reels_media'][0]['items']) > 0:
+                return [self.set_story_url(item) for item in retval['data']['reels_media'][0]['items']]
 
         return []
 
@@ -797,9 +794,9 @@ class InstagramScraper(object):
 
     def story_has_selected_media_types(self, item):
         # media_type 1 is image, 2 is video
-        if item['media_type'] == 1 and 'story-image' in self.media_types:
+        if item['__typename'] == 'GraphStoryImage' and 'story-image' in self.media_types:
             return True
-        if item['media_type'] == 2 and 'story-video' in self.media_types:
+        if item['__typename'] == 'GraphStoryVideo' and 'story-video' in self.media_types:
             return True
 
         return False
@@ -839,10 +836,10 @@ class InstagramScraper(object):
     def set_story_url(self, item):
         """Sets the story url."""
         urls = []
-        if 'video_versions' in item:
-            urls.append(item['video_versions'][0]['url'])
-        if 'image_versions2' in item:
-            urls.append(item['image_versions2']['candidates'][0]['url'].split('?')[0])
+        if 'video_resources' in item:
+            urls.append(item['video_resources'][-1]['src'])
+        if 'display_resources' in item:
+            urls.append(item['display_resources'][-1]['src'].split('?')[0])
         item['urls'] = urls
         return item
 
