@@ -848,6 +848,9 @@ class InstagramScraper(object):
         for url, base_name in self.templatefilename(item):
             file_path = os.path.join(save_dir, base_name)
 
+            if not os.path.exists(os.path.dirname(file_path)):
+                os.makedirs(os.path.dirname(file_path))
+
             if not os.path.isfile(file_path):
                 headers = {'Host': urlparse(url).hostname}
 
@@ -936,6 +939,7 @@ class InstagramScraper(object):
                                     'username' : item['username'],
                                    'urlname': filename,
                                     'shortcode': str(item['shortcode']),
+                                    'mediatype' : item['__typename'][5:],
                                    'datetime': time.strftime('%Y%m%d %Hh%Mm%Ss',
                                                              time.localtime(self.__get_timestamp(item))),
                                    'date': time.strftime('%Y%m%d', time.localtime(self.__get_timestamp(item))),
@@ -1100,6 +1104,7 @@ def main():
         {username}: Instagram user(s) to scrape.
         {shortcode}: post shortcode, but profile_pic and story are none.
         {urlname}: filename form url.
+        {mediatype}: type of media.
         {datetime}: date and time that photo/video post on,
                      format is: 20180101 01h01m01s
         {date}: date that photo/video post on,
