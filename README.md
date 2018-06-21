@@ -126,6 +126,7 @@ OPTIONS
                     {username}: Scraped user
                     {shortcode}: Post shortcode (profile_pic and story are empty)
                     {urlname}: Original file name from url.
+                    {mediatype}: The type of media being downloaded.
                     {datetime}: Date and time of upload. (Format: 20180101 01h01m01s)
                     {date}: Date of upload. (Format: 20180101)
                     {year}: Year of uplaod. (Format: 2018)
