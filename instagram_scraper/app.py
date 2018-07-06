@@ -275,8 +275,8 @@ class InstagramScraper(object):
             except requests.exceptions.RequestException:
                 self.logger.warning('Failed to log out ' + self.login_user)
 
-    def make_dst_dir(self, username):
-        """Creates the destination directory."""
+    def get_dst_dir(self, username):
+        """Gets the destination directory and last scraped file time."""
         if self.destination == './':
             dst = './' + username
         else:
@@ -285,6 +285,15 @@ class InstagramScraper(object):
             else:
                 dst = self.destination
 
+        # Resolve last scraped filetime
+        if self.latest_stamps_parser:
+            self.last_scraped_filemtime = self.get_last_scraped_timestamp(username)
+        elif os.path.isdir(dst):
+            self.last_scraped_filemtime = self.get_last_scraped_filemtime(dst)
+
+        return dst
+
+    def make_dir(self, dst):
         try:
             os.makedirs(dst)
         except OSError as err:
@@ -294,14 +303,6 @@ class InstagramScraper(object):
             else:
                 # Target dir exists as a file, or a different error
                 raise
-
-        # Resolve last scraped filetime
-        if self.latest_stamps_parser:
-            self.last_scraped_filemtime = self.get_last_scraped_timestamp(username)
-        elif os.path.isdir(dst):
-            self.last_scraped_filemtime = self.get_last_scraped_filemtime(dst)
-
-        return dst
 
     def get_last_scraped_timestamp(self, username):
         if self.latest_stamps_parser:
@@ -391,7 +392,7 @@ class InstagramScraper(object):
                 greatest_timestamp = 0
                 future_to_item = {}
 
-                dst = self.make_dst_dir(value)
+                dst = self.get_dst_dir(value)
 
                 if self.include_location:
                     media_exec = concurrent.futures.ThreadPoolExecutor(max_workers=5)
@@ -551,7 +552,7 @@ class InstagramScraper(object):
                 greatest_timestamp = 0
                 future_to_item = {}
 
-                dst = self.make_dst_dir(username)
+                dst = self.get_dst_dir(username)
 
                 # Get the user metadata.
                 shared_data = self.get_shared_data(username)
@@ -849,7 +850,7 @@ class InstagramScraper(object):
             file_path = os.path.join(save_dir, base_name)
 
             if not os.path.exists(os.path.dirname(file_path)):
-                os.makedirs(os.path.dirname(file_path))
+                self.make_dir(os.path.dirname(file_path))
 
             if not os.path.isfile(file_path):
                 headers = {'Host': urlparse(url).hostname}
