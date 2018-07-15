@@ -846,7 +846,9 @@ class InstagramScraper(object):
 
     def download(self, item, save_dir='./'):
         """Downloads the media file."""
-        for url, base_name in self.templatefilename(item):
+        for full_url, base_name in self.templatefilename(item):
+            url = full_url.split('?')[0] #try the static url first, stripping parameters
+
             file_path = os.path.join(save_dir, base_name)
 
             if not os.path.exists(os.path.dirname(file_path)):
@@ -867,21 +869,42 @@ class InstagramScraper(object):
                                 return
                             try:
                                 downloaded_before = downloaded
-                                if downloaded_before != 0:
-                                    headers['Range'] = 'bytes={0}-{1}'.format(downloaded_before, total_length-1)
+                                headers['Range'] = 'bytes={0}-'.format(downloaded_before)
 
                                 with self.session.get(url, headers=headers, stream=True, timeout=CONNECT_TIMEOUT) as response:
                                     if response.status_code == 404:
                                         #instagram don't lie on this
                                         break
+                                    if response.status_code == 403 and url != full_url:
+                                        #see issue #254
+                                        url = full_url
+                                        continue
                                     response.raise_for_status()
 
-                                    if downloaded_before == 0:
+                                    if response.status_code == 206:
+                                        try:
+                                            match = re.match(r'bytes (?P<first>\d+)-(?P<last>\d+)/(?P<size>\d+)', response.headers['Content-Range'])
+                                            range_file_position = int(match.group('first'))
+                                            if range_file_position != downloaded_before: 
+                                                raise Exception()
+                                            total_length = int(match.group('size'))
+                                            media_file.truncate(total_length)
+                                        except:
+                                            raise requests.exceptions.InvalidHeader('Invalid range response "{0}" for requested "{1}"'.format(
+                                                response.headers.get('Content-Range'), headers.get('Range')))
+                                    elif response.status_code == 200:
+                                        if downloaded_before != 0:
+                                            downloaded_before = 0
+                                            downloaded = 0
+                                            media_file.seek(0)
                                         content_length = response.headers.get('Content-Length')
                                         if content_length is None:
-                                            raise PartialContentException('Partial response')
-                                        total_length = int(content_length)
-                                        media_file.truncate(total_length)
+                                            self.logger.warning('No Content-Length in response, the file {0} may be partially downloaded'.format(base_name))
+                                        else:
+                                            total_length = int(content_length)
+                                            media_file.truncate(total_length)
+                                    else:
+                                        raise PartialContentException('Wrong status code {0}', response.status_code)
 
                                     for chunk in response.iter_content(chunk_size=64*1024):
                                         if chunk:
@@ -890,7 +913,7 @@ class InstagramScraper(object):
                                         if self.quit:
                                             return
 
-                                if downloaded != total_length:
+                                if downloaded != total_length and total_length is not None:
                                     raise PartialContentException('Got first {0} bytes from {1}'.format(downloaded, total_length))
 
                                 break
@@ -923,7 +946,7 @@ class InstagramScraper(object):
                     finally:
                         media_file.truncate(downloaded)
 
-                if downloaded == total_length:
+                if downloaded == total_length or total_length is None:
                     os.rename(part_file, file_path)
                     timestamp = self.__get_timestamp(item)
                     file_time = int(timestamp if timestamp else time.time())
@@ -932,8 +955,7 @@ class InstagramScraper(object):
     def templatefilename(self, item):
 
         for url in item['urls']:
-            url = url.split('?')[0]
-            filename, extension = os.path.splitext(os.path.split(url)[1])
+            filename, extension = os.path.splitext(os.path.split(url.split('?')[0])[1])
             try:
                 template = self.template
                 template_values = {
