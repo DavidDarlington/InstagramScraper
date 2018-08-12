@@ -168,7 +168,7 @@ class InstagramScraper(object):
             if self.quit:
                 return
             try:
-                response = self.session.get(timeout=CONNECT_TIMEOUT, *args, **kwargs)
+                response = self.session.get(timeout=CONNECT_TIMEOUT, cookies=self.cookies, *args, **kwargs)
                 if response.status_code == 404:
                     return
                 response.raise_for_status()
