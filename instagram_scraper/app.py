@@ -871,7 +871,7 @@ class InstagramScraper(object):
                                 downloaded_before = downloaded
                                 headers['Range'] = 'bytes={0}-'.format(downloaded_before)
 
-                                with self.session.get(url, headers=headers, stream=True, timeout=CONNECT_TIMEOUT) as response:
+                                with self.session.get(url, cookies=self.cookies, headers=headers, stream=True, timeout=CONNECT_TIMEOUT) as response:
                                     if response.status_code == 404:
                                         #instagram don't lie on this
                                         break
