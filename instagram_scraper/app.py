@@ -121,6 +121,7 @@ class InstagramScraper(object):
         self.session.headers = {'user-agent': CHROME_WIN_UA}
         self.session.cookies.set('ig_pr', '1')
         self.rhx_gis = None
+        self.sessionid = None
 
         self.cookies = None
         self.logged_in = False
@@ -168,7 +169,7 @@ class InstagramScraper(object):
             if self.quit:
                 return
             try:
-                response = self.session.get(timeout=CONNECT_TIMEOUT, cookies=self.cookies, *args, **kwargs)
+                response = self.session.get(timeout=CONNECT_TIMEOUT, *args, **kwargs)
                 if response.status_code == 404:
                     return
                 response.raise_for_status()
@@ -221,6 +222,7 @@ class InstagramScraper(object):
 
         if login_text.get('authenticated') and login.status_code == 200:
             self.logged_in = True
+            self.sessionid = login.cookies.get_dict()["sessionid"]
             self.rhx_gis = self.get_shared_data()['rhx_gis']
         else:
             self.logger.error('Login failed for ' + self.login_user)
@@ -569,7 +571,10 @@ class InstagramScraper(object):
                 self.rhx_gis = shared_data['rhx_gis']
 
                 self.get_profile_pic(dst, executor, future_to_item, user, username)
+                if self.sessionid is not None:
+                    self.session.cookies.set('sessionid', self.sessionid)
                 self.get_stories(dst, executor, future_to_item, user, username)
+                self.sessionid = self.session.cookies.get_dict()["sessionid"]
 
                 # Crawls the media and sends it to the executor.
                 try:
@@ -871,7 +876,7 @@ class InstagramScraper(object):
                                 downloaded_before = downloaded
                                 headers['Range'] = 'bytes={0}-'.format(downloaded_before)
 
-                                with self.session.get(url, cookies=self.cookies, headers=headers, stream=True, timeout=CONNECT_TIMEOUT) as response:
+                                with self.session.get(url, headers=headers, stream=True, timeout=CONNECT_TIMEOUT) as response:
                                     if response.status_code == 404:
                                         #instagram don't lie on this
                                         break
