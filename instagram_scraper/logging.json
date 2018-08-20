@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "disable_existing_loggers": false,
+  "formatters": {
+    "simple": {
+      "format": "%(levelname)s - %(message)s"
+    },
+    "detailed": {
+      "format": "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+    }
+  },
+  "handlers": {
+    "console": {
+      "class": "logging.StreamHandler",
+      "level": "DEBUG",
+      "formatter": "simple",
+      "stream": "ext://sys.stdout"
+    },
+    "file_handler": {
+      "class": "logging.FileHandler",
+      "level": "INFO",
+      "formatter": "detailed",
+      "filename": "instagram-scraper.log",
+      "mode": "w",
+      "encoding": "utf8"
+    }
+  },
+  "loggers": {
+    "instagram_scraper": {
+      "level": "INFO",
+      "handlers": [
+        "console"
+      ],
+      "propagate": "no"
+    }
+  },
+  "root": {
+    "level": "INFO",
+    "handlers": [
+      "console",
+      "file_handler"
+    ]
+  }
+}

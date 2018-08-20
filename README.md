@@ -25,9 +25,9 @@ Usage
 
 To scrape a user's media:
 ```bash
-$ instagram-scraper <username> -u <your username> -p <your password>             
+$ instagram-scraper instagram-scraper <username> -u <your username> -p <your password>            
 ```
-*NOTE: To scrape a private user's media you must be an approved follower.*
+*NOTE: To scrape a private user's media you must be an approved follower.
 
 *By default, downloaded media will be placed in `<current working directory>/<username>`.*
 
@@ -119,7 +119,7 @@ OPTIONS
 
 --search-location   Search for a location by name. Useful for determining the location-id of 
                     a specific place.
-                    
+
 --template -T       Customize and format each file's name.
                     Default: {urlname}
                     Options:
@@ -138,6 +138,14 @@ OPTIONS
                     
                     If the template is invalid, it will revert to the default.
                     Does not work with --tag and --location.
+
+--verbose -v        Logging verbosity level.
+                    0 - ERROR
+                    1 - WARNING
+                    2 - INFO (Default)
+                    3 - DEBUG
+
+--file-log-level    File logging verbosity level. See -verbose option for levels. 
 ```
 
 Develop
@@ -158,7 +166,7 @@ $ python setup.py test
 
 # or just 
 
-$ nosetests
+$ behave
 ```
 
 Contributing

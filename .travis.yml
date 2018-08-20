@@ -9,4 +9,4 @@ install:
   - pip install requests_mock
   - pip install -e .
 # command to run tests
-script: nosetests
+script: python setup.py test
