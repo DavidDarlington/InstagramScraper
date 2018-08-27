@@ -1,1 +1,1 @@
-from query_media_gen import query_media_gen
+from instagram_scraper.generators.query_media_gen import query_media_gen
