@@ -3,7 +3,7 @@ from hamcrest import equal_to, assert_that, instance_of
 from mock import MagicMock
 from requests import Session, HTTPError, Response
 
-from instagram_scraper.constants import BASE_URL, STORIES_UA
+from instagram_scraper.constants import BASE_URL, STORIES_UA, CHROME_WIN_UA
 from instagram_scraper.exceptions import MissingSharedData, InvalidCredentialsException
 from instagram_scraper.repos import AuthRepo
 
@@ -215,4 +215,9 @@ def step_impl(context):
 
 @then('updates the X-CSRFToken header')
 def step_impl(context):
-    context.session.headers.update.assert_called_with({'X-CSRFToken': 'token'})
+    context.session.headers.update.mock_calls[0].assert_called_with({'X-CSRFToken': 'token'})
+
+
+@then('updates the user-agent header')
+def step_impl(context):
+    context.session.headers.update.mock_calls[1].assert_called_with({'user-agent': CHROME_WIN_UA})

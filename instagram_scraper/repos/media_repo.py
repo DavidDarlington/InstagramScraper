@@ -1,6 +1,6 @@
 import logging
 
-from instagram_scraper.constants import QUERY_MEDIA, QUERY_MEDIA_VARS, VIEW_MEDIA_URL
+from instagram_scraper.constants import QUERY_MEDIA, QUERY_MEDIA_VARS, VIEW_MEDIA_URL, STORIES_UA
 from instagram_scraper.helpers import deep_get
 
 log = logging.getLogger(__name__)
@@ -12,6 +12,7 @@ class MediaRepo(object):
         self.session = session
 
     def query_media(self, user_id, end_cursor):
+        self.session.headers.update({'user-agent': STORIES_UA})
         params = QUERY_MEDIA_VARS.format(id, end_cursor)
 
         try:

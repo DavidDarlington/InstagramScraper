@@ -1,7 +1,7 @@
 import logging
 import json
 
-from instagram_scraper.constants import BASE_URL, LOGIN_URL, LOGOUT_URL, STORIES_UA
+from instagram_scraper.constants import BASE_URL, LOGIN_URL, LOGOUT_URL, STORIES_UA, CHROME_WIN_UA
 from instagram_scraper.exceptions import InvalidCredentialsException, MissingSharedData
 
 
@@ -60,6 +60,7 @@ class AuthRepo(object):
                 return
 
             self.session.headers.update({'X-CSRFToken': csrf_token})
+            self.session.headers.update({'user-agent': CHROME_WIN_UA})
             success()
 
     def logout(self, csrf_token, success, failure):

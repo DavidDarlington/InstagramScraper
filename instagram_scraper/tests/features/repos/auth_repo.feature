@@ -43,6 +43,7 @@ Feature: authentication repository
     Given a username and password
     When login succeeds
     Then updates the X-CSRFToken header
+    Then updates the user-agent header
     And calls the login success callback
 
 

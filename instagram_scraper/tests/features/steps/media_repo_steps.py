@@ -3,12 +3,14 @@ from mock import MagicMock
 from hamcrest import assert_that, equal_to
 from requests import Session, HTTPError
 
+from instagram_scraper.constants import STORIES_UA
 from instagram_scraper.repos import MediaRepo
 
 
 @given('a media repo')
 def media_repo(context):
     context.session = MagicMock(spec=Session)
+    context.session.headers = MagicMock(update=MagicMock())
     context.media_repo = MediaRepo(context.session)
 
 
@@ -29,6 +31,11 @@ def step_impl(context):
 
     context.result = context.media_repo.query_media(user_id=context.user_id,
                                                     end_cursor=context.end_cursor)
+
+
+@then('updates the user-agent header to the stories user agent')
+def step_impl(context):
+    context.session.headers.update.assert_called_with({'user-agent': STORIES_UA})
 
 
 @then('returns the user\'s media data')

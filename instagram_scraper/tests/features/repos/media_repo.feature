@@ -6,11 +6,13 @@ Feature: media repository
   Scenario: query media succeeds
     Given a user id and end cursor
     When query media succeeds
+    Then updates the user-agent header to the stories user agent
     Then returns the user's media data
 
   Scenario: query media fails
     Given  a user id and end cursor
     When query media fails
+    Then updates the user-agent header to the stories user agent
     Then raises the exception that caused the query media failure
 
   Scenario: get media details succeeds
