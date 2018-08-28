@@ -1034,6 +1034,9 @@ class InstagramScraper(object):
     @staticmethod
     def save_json(data, dst='./'):
         """Saves the data to a json file."""
+        if not os.path.exists(os.path.dirname(dst)):
+            os.makedirs(os.path.dirname(dst))
+            
         if data:
             with open(dst, 'wb') as f:
                 json.dump(data, codecs.getwriter('utf-8')(f), indent=4, sort_keys=True, ensure_ascii=False)
