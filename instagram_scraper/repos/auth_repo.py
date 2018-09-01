@@ -14,8 +14,9 @@ class AuthRepo(object):
         self.session = session
 
     def find_csrf_token(self, success, failure):
+        self.session.headers.update({'Referer': BASE_URL, 'user-agent': STORIES_UA})
+
         try:
-            self.session.headers.update({'Referer': BASE_URL, 'user-agent': STORIES_UA})
             response = self.session.get(BASE_URL)
             response.raise_for_status()
         except Exception as e:
