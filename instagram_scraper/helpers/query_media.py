@@ -14,6 +14,8 @@ def query_media(user_id, end_cursor, media_repo):
     if not nodes:
         return None, None
 
-    end_cursor = deep_get(user, 'page_info.end_cursor')
+    nodes = [node['node'] for node in nodes]
+
+    end_cursor = deep_get(user, 'edge_owner_to_timeline_media.page_info.end_cursor')
 
     return nodes, end_cursor

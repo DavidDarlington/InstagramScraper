@@ -770,7 +770,6 @@ class InstagramScraper(object):
                 except ValueError:
                     log.error("unable to scrape user - %s" % username)
         finally:
-            self.quit = True
             self.logout()
 
     def query_media_gen(self, user, end_cursor=''):

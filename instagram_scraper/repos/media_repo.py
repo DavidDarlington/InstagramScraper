@@ -13,7 +13,7 @@ class MediaRepo(object):
 
     def query_media(self, user_id, end_cursor):
         self.session.headers.update({'user-agent': STORIES_UA})
-        params = QUERY_MEDIA_VARS.format(id, end_cursor)
+        params = QUERY_MEDIA_VARS.format(user_id, end_cursor)
 
         try:
             response = self.session.get(QUERY_MEDIA.format(params))

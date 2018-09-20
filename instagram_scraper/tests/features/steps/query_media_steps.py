@@ -1,6 +1,6 @@
 from behave import given, when, then
 from hamcrest import equal_to, assert_that
-from mock import MagicMock, patch
+from mock import MagicMock
 
 from instagram_scraper.helpers import query_media
 
@@ -50,7 +50,7 @@ def step_impl(context):
 
 @then('returns media and no end cursor')
 def step_impl(context):
-    assert_that(context.result, equal_to((context.nodes, None)))
+    assert_that(context.result, equal_to(([node['node'] for node in context.nodes], None)))
 
 
 @when('query media returns media with an end cursor')
@@ -63,10 +63,10 @@ def step_impl(context):
 
         return {
             'edge_owner_to_timeline_media': {
-                'edges': context.nodes
-            },
-            'page_info': {
-                'end_cursor': 9
+                'edges': context.nodes,
+                'page_info': {
+                    'end_cursor': 9
+                }
             }
         }
 
@@ -79,4 +79,4 @@ def step_impl(context):
 
 @then('returns media and end cursor')
 def step_impl(context):
-    assert_that(context.result, equal_to((context.nodes, 9)))
+    assert_that(context.result, equal_to(([node['node'] for node in context.nodes], 9)))
