@@ -198,7 +198,7 @@ class InstagramScraper(object):
     # -------- SELECT CHALLENGE MODE ----------------------------------------------------------
 
     def login_challenge(self, challenge_url):
-        mode = input('Choose a challenge mode (0 - SMS, 1 - Email): ')
+        mode = int(input('Choose a challenge mode (0 - SMS, 1 - Email): '))
 
         select_challenge_mode(challenge_url=challenge_url,
                               mode=str(mode).strip(),
@@ -206,7 +206,7 @@ class InstagramScraper(object):
                               challenge_repo=self.repo_factory.get_challenge_repo())
 
     def select_challenge_mode_success(self, challenge_url):
-        code = input('Enter code received: ')
+        code = int(input('Enter code received: '))
 
         send_challenge_code(challenge_url=challenge_url,
                             code=str(code).strip(),
