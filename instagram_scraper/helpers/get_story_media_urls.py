@@ -11,6 +11,6 @@ def get_story_media_urls(item):
         urls.append(video_url)
 
     if img_url:
-        urls.append(img_url.split('?')[0])
+        urls.append(img_url)
 
     return urls

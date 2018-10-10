@@ -25,7 +25,7 @@ def step_impl(context):
 
 @then('returns a list of story image and video urls')
 def step_impl(context):
-    assert_that(context.result, equal_to(['url1', 'url2']))
+    assert_that(context.result, equal_to(['url1', 'url2?']))
 
 
 @given('item with no video and image urls')

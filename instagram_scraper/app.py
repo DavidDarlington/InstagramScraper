@@ -476,7 +476,7 @@ class InstagramScraper(object):
                     return
                 response.raise_for_status()
                 content_length = response.headers.get('Content-Length')
-                if content_length is None or len(response.content) != int(content_length):
+                if content_length is not None and len(response.content) != int(content_length):
                     # if content_length is None we repeat anyway to get size and be confident
                     raise PartialContentException('Partial response')
                 return response
