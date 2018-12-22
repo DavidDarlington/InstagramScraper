@@ -842,7 +842,7 @@ class InstagramScraper(object):
         if 'video_resources' in item:
             urls.append(item['video_resources'][-1]['src'])
         if 'display_resources' in item:
-            urls.append(item['display_resources'][-1]['src'].split('?')[0])
+            urls.append(item['display_resources'][-1]['src'])
         item['urls'] = urls
         return item
 
