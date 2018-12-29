@@ -11,8 +11,10 @@ import json
 import logging.config
 import hashlib
 import os
+import pickle
 import re
 import sys
+import tempfile
 import textwrap
 import time
 
@@ -119,6 +121,9 @@ class InstagramScraper(object):
         self.posts = []
         self.session = requests.Session()
         self.session.headers = {'user-agent': CHROME_WIN_UA}
+        if os.path.exists(InstagramScraper.get_cookie_file()):
+            with open(InstagramScraper.get_cookie_file(), 'rb') as f:
+                self.session.cookies.update(pickle.load(f))
         self.session.cookies.set('ig_pr', '1')
         self.rhx_gis = None
 
@@ -1107,6 +1112,14 @@ class InstagramScraper(object):
 
         return val
 
+    @staticmethod
+    def get_cookie_file():
+        return tempfile.gettempdir() + '/instagram-scraper.cookies'
+
+    def save_cookies(self):
+        with open(InstagramScraper.get_cookie_file(), 'wb') as f:
+            pickle.dump(self.session.cookies, f)
+
 
 
 def main():
@@ -1223,6 +1236,8 @@ def main():
         scraper.search_locations()
     else:
         scraper.scrape()
+
+    scraper.save_cookies()
 
 
 if __name__ == '__main__':
