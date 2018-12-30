@@ -99,6 +99,8 @@ OPTIONS
                     This allows the destination directories to be emptied whilst 
                     still maintaining history.
 
+--cookiejar         File in which to store cookies so that they can be reused between runs.
+
 --quiet       -q    Be quiet while scraping.
 
 --maximum     -m    Maximum number of items to scrape.

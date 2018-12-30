@@ -14,7 +14,6 @@ import os
 import pickle
 import re
 import sys
-import tempfile
 import textwrap
 import time
 
@@ -85,7 +84,7 @@ class InstagramScraper(object):
                             login_user=None, login_pass=None,
                             destination='./', retain_username=False, interactive=False,
                             quiet=False, maximum=0, media_metadata=False, latest=False,
-                            latest_stamps=False,
+                            latest_stamps=False, cookiejar=None,
                             media_types=['image', 'video', 'story-image', 'story-video'],
                             tag=False, location=False, search_location=False, comments=False,
                             verbose=0, include_location=False, filter=None,
@@ -121,8 +120,8 @@ class InstagramScraper(object):
         self.posts = []
         self.session = requests.Session()
         self.session.headers = {'user-agent': CHROME_WIN_UA}
-        if os.path.exists(InstagramScraper.get_cookie_file()):
-            with open(InstagramScraper.get_cookie_file(), 'rb') as f:
+        if self.cookiejar and os.path.exists(self.cookiejar):
+            with open(self.cookiejar, 'rb') as f:
                 self.session.cookies.update(pickle.load(f))
         self.session.cookies.set('ig_pr', '1')
         self.rhx_gis = None
@@ -1112,13 +1111,10 @@ class InstagramScraper(object):
 
         return val
 
-    @staticmethod
-    def get_cookie_file():
-        return tempfile.gettempdir() + '/instagram-scraper.cookies'
-
     def save_cookies(self):
-        with open(InstagramScraper.get_cookie_file(), 'wb') as f:
-            pickle.dump(self.session.cookies, f)
+        if self.cookiejar:
+            with open(self.cookiejar, 'wb') as f:
+                pickle.dump(self.session.cookies, f)
 
 
 
@@ -1179,6 +1175,8 @@ def main():
     parser.add_argument('--latest', action='store_true', default=False, help='Scrape new media since the last scrape')
     parser.add_argument('--latest-stamps', '--latest_stamps', default=None,
                         help='Scrape new media since timestamps by user in specified file')
+    parser.add_argument('--cookiejar', '--cookierjar', default=None,
+                        help='File in which to store cookies so that they can be reused between runs.')
     parser.add_argument('--tag', action='store_true', default=False, help='Scrape media using a hashtag')
     parser.add_argument('--filter', default=None, help='Filter by tags in user posts', nargs='*')
     parser.add_argument('--location', action='store_true', default=False, help='Scrape media using a location-id')
