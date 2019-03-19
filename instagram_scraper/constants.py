@@ -13,6 +13,9 @@ LOCATIONS_URL = BASE_URL + 'explore/locations/{0}/?__a=1'
 VIEW_MEDIA_URL = BASE_URL + 'p/{0}/?__a=1'
 SEARCH_URL = BASE_URL + 'web/search/topsearch/?context=blended&query={0}'
 
+QUERY_FOLLOWINGS = BASE_URL + 'graphql/query/?query_hash=c56ee0ae1f89cdbd1c89e2bc6b8f3d18&variables={0}'
+QUERY_FOLLOWINGS_VARS = '{{"id":"{0}","first":50,"after":"{1}"}}'
+
 QUERY_COMMENTS = BASE_URL + 'graphql/query/?query_hash=33ba35852cb50da46f5b5e889df7d159&variables={0}'
 QUERY_COMMENTS_VARS = '{{"shortcode":"{0}","first":50,"after":"{1}"}}'
 

@@ -82,6 +82,7 @@ class InstagramScraper(object):
     def __init__(self, **kwargs):
         default_attr = dict(username='', usernames=[], filename=None,
                             login_user=None, login_pass=None,
+                            followings_input=False, followings_output='profiles.txt',
                             destination='./', retain_username=False, interactive=False,
                             quiet=False, maximum=0, media_metadata=False, profile_metadata=False, latest=False,
                             latest_stamps=False, cookiejar=None,
@@ -353,6 +354,36 @@ class InstagramScraper(object):
             return int(os.path.getmtime(latest_file))
         return 0
 
+    def query_followings_gen(self, username, end_cursor=''):
+        """Generator for followings."""
+        user = self.deep_get(self.get_shared_data(username), 'entry_data.ProfilePage[0].graphql.user')
+        id = user['id']
+        followings, end_cursor = self.__query_followings(id, end_cursor)
+
+
+        if followings:
+            while True:
+                for following in followings:
+                    yield following
+                if end_cursor:
+                    followings, end_cursor = self.__query_followings(id, end_cursor)
+                else:
+                    return
+
+    def __query_followings(self, id, end_cursor=''):
+        params = QUERY_FOLLOWINGS_VARS.format(id, end_cursor)
+        resp = self.get_json(QUERY_FOLLOWINGS.format(params))
+
+        if resp is not None:
+            payload = json.loads(resp)['data']['user']['edge_follow']
+            if payload:
+                end_cursor = payload['page_info']['end_cursor']
+                followings = []
+                for node in payload['edges']:
+                    followings.append(node['node']['username'])
+                return followings, end_cursor
+        return None, None
+
     def query_comments_gen(self, shortcode, end_cursor=''):
         """Generator for comments."""
         comments, end_cursor = self.__query_comments(shortcode, end_cursor)
@@ -458,7 +489,10 @@ class InstagramScraper(object):
                     self.set_last_scraped_timestamp(value, greatest_timestamp)
 
                 if (self.media_metadata or self.comments or self.include_location) and self.posts:
-                    self.save_json({ 'GraphImages': self.posts }, '{0}/{1}.json'.format(dst, value))
+                    if self.latest:
+                        self.merge_json({ 'GraphImages': self.posts }, '{0}/{1}.json'.format(dst, value))
+                    else:
+                        self.save_json({ 'GraphImages': self.posts }, '{0}/{1}.json'.format(dst, value))
         finally:
             self.quit = True
 
@@ -619,7 +653,10 @@ class InstagramScraper(object):
                         self.set_last_scraped_timestamp(username, greatest_timestamp)
 
                     if (self.media_metadata or self.comments or self.include_location) and self.posts:
-                        self.save_json({ 'GraphImages': self.posts }, '{0}/{1}.json'.format(dst, username))
+                        if self.latest:
+                            self.merge_json({ 'GraphImages': self.posts }, '{0}/{1}.json'.format(dst, username))
+                        else:
+                            self.save_json({ 'GraphImages': self.posts }, '{0}/{1}.json'.format(dst, username))
                 except ValueError:
                     self.logger.error("Unable to scrape user - %s" % username)
         finally:
@@ -1098,6 +1135,16 @@ class InstagramScraper(object):
                 place['location']['lng']
             ))
 
+    def merge_json(self, data, dst='./'):
+        if not os.path.exists(dst):
+            self.save_json(data, dst)
+
+        if data:
+            merged = data
+            with open(dst, 'r') as f:
+                merged += json.load(f)
+            self.save_json(merged, dst)
+
     @staticmethod
     def save_json(data, dst='./'):
         """Saves the data to a json file."""
@@ -1230,6 +1277,9 @@ def main():
     parser.add_argument('--destination', '-d', default='./', help='Download destination')
     parser.add_argument('--login-user', '--login_user', '-u', default=None, help='Instagram login user')
     parser.add_argument('--login-pass', '--login_pass', '-p', default=None, help='Instagram login password')
+    parser.add_argument('--followings-input', '--followings_input', action='store_true', default=False,
+                        help='Compile list of profiles followed by login-user to use as input')
+    parser.add_argument('--followings-output', '--followings_output', help='Output followings-input to file in destination')
     parser.add_argument('--filename', '-f', help='Path to a file containing a list of users to scrape')
     parser.add_argument('--quiet', '-q', default=False, action='store_true', help='Be quiet while scraping')
     parser.add_argument('--maximum', '-m', type=int, default=0, help='Maximum number of items to scrape')
@@ -1266,12 +1316,12 @@ def main():
         parser.print_help()
         raise ValueError('Must provide login user AND password')
 
-    if not args.username and args.filename is None:
+    if not args.username and args.filename is None and not args.followings_input:
         parser.print_help()
-        raise ValueError('Must provide username(s) OR a file containing a list of username(s)')
-    elif args.username and args.filename:
+        raise ValueError('Must provide username(s) OR a file containing a list of username(s) OR pass --followings-input')
+    elif (args.username and args.filename) or (args.username and args.followings_input) or (args.filename and args.followings_input):
         parser.print_help()
-        raise ValueError('Must provide only one of the following: username(s) OR a filename containing username(s)')
+        raise ValueError('Must provide only one of the following: username(s) OR a filename containing username(s) OR --followings-input')
 
     if args.tag and args.location:
         parser.print_help()
@@ -1299,6 +1349,17 @@ def main():
         scraper.authenticate_with_login()
     else:
         scraper.authenticate_as_guest()
+
+    if args.followings_input:
+        scraper.usernames = list(scraper.query_followings_gen(scraper.login_user))
+        if args.followings_output:
+            with open(scraper.destination+scraper.followings_output, 'w') as file:
+                for username in scraper.usernames:
+                    file.write(username + "\n")
+            # If not requesting anything else, exit
+            if args.media_types == ['none'] and args.media_metadata is False:
+                scraper.logout()
+                return
 
     if args.tag:
         scraper.scrape_hashtag()

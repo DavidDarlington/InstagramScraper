@@ -81,6 +81,10 @@ OPTIONS
 
 --login-pass  -p    Instagram login password.
 
+--followings-input  Use profiles followed by login-user as input
+
+--followings-output Output profiles from --followings-input to file
+
 --filename    -f    Path to a file containing a list of users to scrape.
 
 --destination -d    Specify the download destination. By default, media will 
