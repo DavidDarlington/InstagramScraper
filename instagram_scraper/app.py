@@ -127,6 +127,7 @@ class InstagramScraper(object):
         self.rhx_gis = None
 
         self.cookies = None
+        self.authenticated = False
         self.logged_in = False
         self.last_scraped_filemtime = 0
         if default_attr['filter']:
@@ -210,7 +211,18 @@ class InstagramScraper(object):
         if resp is not None:
             return resp.text
 
-    def login(self):
+    def authenticate_as_guest(self):
+        """Authenticate as a guest/non-signed in user"""
+        self.session.headers.update({'Referer': BASE_URL, 'user-agent': STORIES_UA})
+        req = self.session.get(BASE_URL)
+
+        self.session.headers.update({'X-CSRFToken': req.cookies['csrftoken']})
+
+        self.session.headers = {'user-agent': CHROME_WIN_UA}
+        self.rhx_gis = self.get_shared_data()['rhx_gis']
+        self.authenticated = True
+
+    def authenticate_with_login(self):
         """Logs in to instagram."""
         self.session.headers.update({'Referer': BASE_URL, 'user-agent': STORIES_UA})
         req = self.session.get(BASE_URL)
@@ -224,6 +236,7 @@ class InstagramScraper(object):
         login_text = json.loads(login.text)
 
         if login_text.get('authenticated') and login.status_code == 200:
+            self.authenticated = True
             self.logged_in = True
             self.session.headers = {'user-agent': CHROME_WIN_UA}
             self.rhx_gis = self.get_shared_data()['rhx_gis']
@@ -262,6 +275,7 @@ class InstagramScraper(object):
         code_text = json.loads(code.text)
 
         if code_text.get('status') == 'ok':
+            self.authenticated = True
             self.logged_in = True
         elif 'errors' in code.text:
             for count, error in enumerate(code_text['challenge']['errors']):
@@ -276,6 +290,7 @@ class InstagramScraper(object):
             try:
                 logout_data = {'csrfmiddlewaretoken': self.cookies['csrftoken']}
                 self.session.post(LOGOUT_URL, data=logout_data)
+                self.authenticated = False
                 self.logged_in = False
             except requests.exceptions.RequestException:
                 self.logger.warning('Failed to log out ' + self.login_user)
@@ -573,10 +588,12 @@ class InstagramScraper(object):
                         self.logger.error('User {0} is private'.format(username))
 
                 self.rhx_gis = shared_data['rhx_gis']
-
+            
                 self.get_profile_info(dst, username)
                 self.get_profile_pic(dst, executor, future_to_item, user, username)
-                self.get_stories(dst, executor, future_to_item, user, username)
+
+                if self.logged_in:
+                    self.get_stories(dst, executor, future_to_item, user, username)
 
                 # Crawls the media and sends it to the executor.
                 try:
@@ -613,28 +630,33 @@ class InstagramScraper(object):
         if 'image' not in self.media_types:
             return
 
-        url = USER_INFO.format(user['id'])
-        resp = self.get_json(url)
+        if self.logged_in:
+            # Try Get the High-Resolution profile picture
+            url = USER_INFO.format(user['id'])
+            resp = self.get_json(url)
 
-        if resp is None:
-            self.logger.error('Error getting user info for {0}'.format(username))
-            return
+            if resp is None:
+                self.logger.error('Error getting user info for {0}'.format(username))
+                return
 
-        user_info = json.loads(resp)['user']
+            user_info = json.loads(resp)['user']
 
-        if user_info['has_anonymous_profile_picture']:
-            return
+            if user_info['has_anonymous_profile_picture']:
+                return
 
-        try:
-            profile_pic_urls = [
-                user_info['hd_profile_pic_url_info']['url'],
-                user_info['hd_profile_pic_versions'][-1]['url'],
-            ]
+            try:
+                profile_pic_urls = [
+                    user_info['hd_profile_pic_url_info']['url'],
+                    user_info['hd_profile_pic_versions'][-1]['url'],
+                ]
 
-            profile_pic_url = next(url for url in profile_pic_urls if url is not None)
-        except (KeyError, IndexError, StopIteration):
-            self.logger.warning('Failed to get high resolution profile picture for {0}'.format(username))
-            profile_pic_url = user['profile_pic_url_hd']
+                profile_pic_url = next(url for url in profile_pic_urls if url is not None)
+            except (KeyError, IndexError, StopIteration):
+                self.logger.warning('Failed to get high resolution profile picture for {0}'.format(username))
+                profile_pic_url = user['profile_pic_url_hd'] 
+        else:
+                # If not logged_in take the Low-Resolution profile picture
+                profile_pic_url = user['profile_pic_url_hd'] 
 
         item = {'urls': [profile_pic_url], 'username': username, 'shortcode':'', 'created_time': 1286323200, '__typename': 'GraphProfilePic'}
 
@@ -1206,8 +1228,8 @@ def main():
 
     parser.add_argument('username', help='Instagram user(s) to scrape', nargs='*')
     parser.add_argument('--destination', '-d', default='./', help='Download destination')
-    parser.add_argument('--login-user', '--login_user', '-u', default=None, help='Instagram login user', required=True)
-    parser.add_argument('--login-pass', '--login_pass', '-p', default=None, help='Instagram login password', required=True)
+    parser.add_argument('--login-user', '--login_user', '-u', default=None, help='Instagram login user')
+    parser.add_argument('--login-pass', '--login_pass', '-p', default=None, help='Instagram login password')
     parser.add_argument('--filename', '-f', help='Path to a file containing a list of users to scrape')
     parser.add_argument('--quiet', '-q', default=False, action='store_true', help='Be quiet while scraping')
     parser.add_argument('--maximum', '-m', type=int, default=0, help='Maximum number of items to scrape')
@@ -1273,7 +1295,10 @@ def main():
 
     scraper = InstagramScraper(**vars(args))
 
-    scraper.login()
+    if args.login_user and args.login_pass:
+        scraper.authenticate_with_login()
+    else:
+        scraper.authenticate_as_guest()
 
     if args.tag:
         scraper.scrape_hashtag()

@@ -38,6 +38,10 @@ $ instagram-scraper <username> -u <your username> -p <your password>
 *By default, downloaded media will be placed in `<current working directory>/<username>`.*
 
 
+Providing username and password is optional, if not supplied the scraper runs as a guest. 
+*Note: In this case all private user's media will be unavailable. All user's stories and high resolution profile pictures will also be unavailable.*
+
+
 To scrape a hashtag for media:
 ```bash
 $ instagram-scraper <hashtag without #> --tag          
