@@ -83,7 +83,7 @@ class InstagramScraper(object):
         default_attr = dict(username='', usernames=[], filename=None,
                             login_user=None, login_pass=None,
                             destination='./', retain_username=False, interactive=False,
-                            quiet=False, maximum=0, media_metadata=False, latest=False,
+                            quiet=False, maximum=0, media_metadata=False, profile_metadata=False, latest=False,
                             latest_stamps=False, cookiejar=None,
                             media_types=['image', 'video', 'story-image', 'story-video'],
                             tag=False, location=False, search_location=False, comments=False,
@@ -443,7 +443,7 @@ class InstagramScraper(object):
                     self.set_last_scraped_timestamp(value, greatest_timestamp)
 
                 if (self.media_metadata or self.comments or self.include_location) and self.posts:
-                    self.save_json(self.posts, '{0}/{1}.json'.format(dst, value))
+                    self.save_json({ 'GraphImages': self.posts }, '{0}/{1}.json'.format(dst, value))
         finally:
             self.quit = True
 
@@ -574,6 +574,7 @@ class InstagramScraper(object):
 
                 self.rhx_gis = shared_data['rhx_gis']
 
+                self.get_profile_info(dst, username)
                 self.get_profile_pic(dst, executor, future_to_item, user, username)
                 self.get_stories(dst, executor, future_to_item, user, username)
 
@@ -601,7 +602,7 @@ class InstagramScraper(object):
                         self.set_last_scraped_timestamp(username, greatest_timestamp)
 
                     if (self.media_metadata or self.comments or self.include_location) and self.posts:
-                        self.save_json(self.posts, '{0}/{1}.json'.format(dst, username))
+                        self.save_json({ 'GraphImages': self.posts }, '{0}/{1}.json'.format(dst, username))
                 except ValueError:
                     self.logger.error("Unable to scrape user - %s" % username)
         finally:
@@ -642,6 +643,46 @@ class InstagramScraper(object):
                                   ncols=0, disable=self.quiet):
                 future = executor.submit(self.worker_wrapper, self.download, item, dst)
                 future_to_item[future] = item
+
+    def get_profile_info(self, dst, username):
+        if self.profile_metadata is False:
+            return
+        url = USER_URL.format(username)
+        resp = self.get_json(url)
+
+        if resp is None:
+            self.logger.error('Error getting user info for {0}'.format(username))
+            return
+
+        self.logger.info( 'Saving metadata general information on {0}.json'.format(username) )
+
+        user_info = json.loads(resp)['graphql']['user']
+
+        try:
+            profile_info = {
+                'biography': user_info['biography'],
+                'followers_count': user_info['edge_followed_by']['count'],
+                'following_count': user_info['edge_follow']['count'],
+                'full_name': user_info['full_name'],
+                'id': user_info['id'],
+                'is_business_account': user_info['is_business_account'],
+                'is_joined_recently': user_info['is_joined_recently'],
+                'is_private': user_info['is_private'],
+                'posts_count': user_info['edge_owner_to_timeline_media']['count'],
+                'profile_pic_url': user_info['profile_pic_url']
+            }
+        except (KeyError, IndexError, StopIteration):
+            self.logger.warning('Failed to build {0} profile info'.format(username))
+            return
+
+        item = {
+            'GraphProfileInfo': {
+                'info': profile_info,
+                'username': username,
+                'created_time': 1286323200
+            }
+        }
+        self.save_json(item, '{0}/{1}.json'.format(dst, username))
 
     def get_stories(self, dst, executor, future_to_item, user, username):
         """Scrapes the user's stories."""
@@ -1042,8 +1083,14 @@ class InstagramScraper(object):
             os.makedirs(os.path.dirname(dst))
             
         if data:
+            output_list = {}
+            if os.path.exists(dst):
+                with open(dst, "rb") as f:
+                    output_list.update(json.load(f))
+
             with open(dst, 'wb') as f:
-                json.dump(data, codecs.getwriter('utf-8')(f), indent=4, sort_keys=True, ensure_ascii=False)
+                output_list.update(data)
+                json.dump(output_list, codecs.getwriter('utf-8')(f), indent=4, sort_keys=True, ensure_ascii=False)
 
     @staticmethod
     def get_logger(level=logging.DEBUG, verbose=0):
@@ -1168,6 +1215,8 @@ def main():
                         help='Creates username subdirectory when destination flag is set')
     parser.add_argument('--media-metadata', '--media_metadata', action='store_true', default=False,
                         help='Save media metadata to json file')
+    parser.add_argument('--profile-metadata', '--profile_metadata', action='store_true', default=False,
+                        help='Save profile metadata to json file')
     parser.add_argument('--include-location', '--include_location', action='store_true', default=False,
                         help='Include location data when saving media metadata')
     parser.add_argument('--media-types', '--media_types', '-t', nargs='+', default=['image', 'video', 'story'],
