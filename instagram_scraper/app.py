@@ -632,10 +632,10 @@ class InstagramScraper(object):
 
                 self.rhx_gis = shared_data['rhx_gis']
             
-                self.get_profile_info(dst, username)
                 self.get_profile_pic(dst, executor, future_to_item, user, username)
 
                 if self.logged_in:
+                    self.get_profile_info(dst, username)
                     self.get_stories(dst, executor, future_to_item, user, username)
 
                 # Crawls the media and sends it to the executor.
