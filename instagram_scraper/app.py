@@ -88,7 +88,7 @@ class InstagramScraper(object):
                             latest_stamps=False, cookiejar=None,
                             media_types=['image', 'video', 'story-image', 'story-video'],
                             tag=False, location=False, search_location=False, comments=False,
-                            verbose=0, include_location=False, filter=None,
+                            verbose=0, include_location=False, filter=None, proxies={},
                                                         template='{urlname}')
 
         allowed_attr = list(default_attr.keys())
@@ -119,7 +119,16 @@ class InstagramScraper(object):
         self.logger = InstagramScraper.get_logger(level=logging.DEBUG, verbose=default_attr.get('verbose'))
 
         self.posts = []
+
         self.session = requests.Session()
+
+        try:
+            if self.proxies and type(self.proxies) == str:
+                self.session.proxies = json.loads(self.proxies)
+        except ValueError:
+            self.logger.error("Check is valid json type.")
+            raise
+
         self.session.headers = {'user-agent': CHROME_WIN_UA}
         if self.cookiejar and os.path.exists(self.cookiejar):
             with open(self.cookiejar, 'rb') as f:
@@ -1289,6 +1298,7 @@ def main():
                         help='Save media metadata to json file')
     parser.add_argument('--profile-metadata', '--profile_metadata', action='store_true', default=False,
                         help='Save profile metadata to json file')
+    parser.add_argument('--proxies', default={}, help='Maximum number of items to scrape')
     parser.add_argument('--include-location', '--include_location', action='store_true', default=False,
                         help='Include location data when saving media metadata')
     parser.add_argument('--media-types', '--media_types', '-t', nargs='+', default=['image', 'video', 'story'],
