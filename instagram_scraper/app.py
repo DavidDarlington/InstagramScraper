@@ -628,7 +628,7 @@ class InstagramScraper(object):
                     continue
                 elif user and user['is_private'] and user['edge_owner_to_timeline_media']['count'] > 0 and not \
                     user['edge_owner_to_timeline_media']['edges']:
-                        self.logger.error('User {0} is private'.format(username))
+                        self.logger.info('User {0} is private'.format(username))
 
                 self.rhx_gis = shared_data['rhx_gis']
             
