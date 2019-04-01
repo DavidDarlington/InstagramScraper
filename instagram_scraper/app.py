@@ -88,7 +88,7 @@ class InstagramScraper(object):
                             latest_stamps=False, cookiejar=None,
                             media_types=['image', 'video', 'story-image', 'story-video'],
                             tag=False, location=False, search_location=False, comments=False,
-                            verbose=0, include_location=False, filter=None, proxies={},
+                            verbose=0, include_location=False, filter=None, proxies={}, no_check_certificate=False,
                                                         template='{urlname}')
 
         allowed_attr = list(default_attr.keys())
@@ -121,6 +121,8 @@ class InstagramScraper(object):
         self.posts = []
 
         self.session = requests.Session()
+        if self.no_check_certificate:
+            self.session.verify = False
 
         try:
             if self.proxies and type(self.proxies) == str:
@@ -1316,6 +1318,7 @@ def main():
     parser.add_argument('--location', action='store_true', default=False, help='Scrape media using a location-id')
     parser.add_argument('--search-location', action='store_true', default=False, help='Search for locations by name')
     parser.add_argument('--comments', action='store_true', default=False, help='Save post comments to json file')
+    parser.add_argument('--no-check-certificate', action='store_true', default=False, help='Do not use ssl on transaction')
     parser.add_argument('--interactive', '-i', action='store_true', default=False,
                         help='Enable interactive login challenge solving')
     parser.add_argument('--retry-forever', action='store_true', default=False,
