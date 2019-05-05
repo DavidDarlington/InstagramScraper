@@ -989,7 +989,8 @@ class InstagramScraper(object):
                                 headers['Range'] = 'bytes={0}-'.format(downloaded_before)
 
                                 with self.session.get(url, cookies=self.cookies, headers=headers, stream=True, timeout=CONNECT_TIMEOUT) as response:
-                                    if response.status_code == 404:
+                                    if response.status_code == 404 or response.status_code == 410:
+                                        #on 410 error see issue #343
                                         #instagram don't lie on this
                                         break
                                     if response.status_code == 403 and url != full_url:
@@ -1041,19 +1042,22 @@ class InstagramScraper(object):
                             except (KeyboardInterrupt):
                                 raise
                             except (requests.exceptions.RequestException, PartialContentException) as e:
+                                media = url
+                                if item['shortcode'] and item['shortcode'] != '':
+                                    media += " from https://www.instagram.com/p/" + item['shortcode']
                                 if downloaded - downloaded_before > 0:
                                     # if we got some data on this iteration do not count it as a failure
-                                    self.logger.warning('Continue after exception {0} on {1}'.format(repr(e), url))
+                                    self.logger.warning('Continue after exception {0} on {1}'.format(repr(e), media))
                                     retry = 0 # the next fail will be first in a row with no data
                                     continue
                                 if retry < MAX_RETRIES:
-                                    self.logger.warning('Retry after exception {0} on {1}'.format(repr(e), url))
+                                    self.logger.warning('Retry after exception {0} on {1}'.format(repr(e), media))
                                     self.sleep(retry_delay)
                                     retry_delay = min( 2 * retry_delay, MAX_RETRY_DELAY )
                                     retry = retry + 1
                                     continue
                                 else:
-                                    keep_trying = self._retry_prompt(url, repr(e))
+                                    keep_trying = self._retry_prompt(media, repr(e))
                                     if keep_trying == True:
                                         retry = 0
                                         continue
@@ -1063,7 +1067,7 @@ class InstagramScraper(object):
                     finally:
                         media_file.truncate(downloaded)
 
-                if downloaded == total_length or total_length is None:
+                if downloaded == total_length or total_length is None and downloaded > 100:
                     os.rename(part_file, file_path)
                     timestamp = self.__get_timestamp(item)
                     file_time = int(timestamp if timestamp else time.time())
