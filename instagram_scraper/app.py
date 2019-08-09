@@ -1157,8 +1157,8 @@ class InstagramScraper(object):
 
         if data:
             merged = data
-            with open(dst, 'r') as f:
-                file_data = json.load(f)
+            with open(dst, 'rb') as f:
+                file_data = json.load(codecs.getreader('utf-8')(f))
                 key = list(merged.keys())[0]
                 if key in file_data:
                     merged[key] = file_data[key]
@@ -1169,12 +1169,12 @@ class InstagramScraper(object):
         """Saves the data to a json file."""
         if not os.path.exists(os.path.dirname(dst)):
             os.makedirs(os.path.dirname(dst))
-
+            
         if data:
             output_list = {}
             if os.path.exists(dst):
                 with open(dst, "rb") as f:
-                    output_list.update(json.load(f))
+                    output_list.update(json.load(codecs.getreader('utf-8')(f)))
 
             with open(dst, 'wb') as f:
                 output_list.update(data)
