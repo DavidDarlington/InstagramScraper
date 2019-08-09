@@ -231,7 +231,7 @@ class InstagramScraper(object):
 
         self.session.headers.update({'X-CSRFToken': req.cookies['csrftoken']})
 
-        self.session.headers = {'user-agent': CHROME_WIN_UA}
+        self.session.headers.update({'user-agent': CHROME_WIN_UA})
         self.rhx_gis = ""
         self.authenticated = True
 
@@ -251,7 +251,7 @@ class InstagramScraper(object):
         if login_text.get('authenticated') and login.status_code == 200:
             self.authenticated = True
             self.logged_in = True
-            self.session.headers = {'user-agent': CHROME_WIN_UA}
+            self.session.headers.update({'user-agent': CHROME_WIN_UA})
             self.rhx_gis = ""
         else:
             self.logger.error('Login failed for ' + self.login_user)
@@ -611,7 +611,7 @@ class InstagramScraper(object):
 
     def scrape(self, executor=concurrent.futures.ThreadPoolExecutor(max_workers=MAX_CONCURRENT_DOWNLOADS)):
         """Crawls through and downloads user's media"""
-        self.session.headers = {'user-agent': STORIES_UA}
+        self.session.headers.update({'user-agent': STORIES_UA})
         try:
             for username in self.usernames:
                 self.posts = []
