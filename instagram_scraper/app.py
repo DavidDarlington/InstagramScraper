@@ -89,7 +89,7 @@ class InstagramScraper(object):
                             media_types=['image', 'video', 'story-image', 'story-video'],
                             tag=False, location=False, search_location=False, comments=False,
                             verbose=0, include_location=False, filter=None, proxies={}, no_check_certificate=False,
-                                                        template='{urlname}')
+                                                        template='{urlname}', log_destination='')
 
         allowed_attr = list(default_attr.keys())
         default_attr.update(kwargs)
@@ -116,7 +116,7 @@ class InstagramScraper(object):
             self.latest = True
 
         # Set up a logger
-        self.logger = InstagramScraper.get_logger(level=logging.DEBUG, verbose=default_attr.get('verbose'))
+        self.logger = InstagramScraper.get_logger(level=logging.DEBUG, dest=default_attr.get('log_destination'), verbose=default_attr.get('verbose'))
 
         self.posts = []
 
@@ -1180,11 +1180,12 @@ class InstagramScraper(object):
                 json.dump(output_list, codecs.getwriter('utf-8')(f), indent=4, sort_keys=True, ensure_ascii=False)
 
     @staticmethod
-    def get_logger(level=logging.DEBUG, verbose=0):
+    def get_logger(level=logging.DEBUG, dest='', verbose=0):
         """Returns a logger."""
         logger = logging.getLogger(__name__)
 
-        fh = logging.FileHandler('instagram-scraper.log', 'w')
+        dest +=  '/' if (dest !=  '') and dest[-1] != '/' else ''
+        fh = logging.FileHandler(dest + 'instagram-scraper.log', 'w')
         fh.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
         fh.setLevel(level)
         logger.addHandler(fh)
@@ -1329,6 +1330,7 @@ def main():
                         help='Retry download attempts endlessly when errors are received')
     parser.add_argument('--verbose', '-v', type=int, default=0, help='Logging verbosity level')
     parser.add_argument('--template', '-T', type=str, default='{urlname}', help='Customize filename template')
+    parser.add_argument('--log_destination', '-l', type=str, default='', help='destination folder for the instagram-scraper.log file')
 
     args = parser.parse_args()
 
@@ -1362,6 +1364,8 @@ def main():
     if args.retry_forever:
         global MAX_RETRIES
         MAX_RETRIES = sys.maxsize
+
+    
 
     scraper = InstagramScraper(**vars(args))
 
