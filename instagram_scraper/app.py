@@ -83,7 +83,7 @@ class InstagramScraper(object):
         default_attr = dict(username='', usernames=[], filename=None,
                             login_user=None, login_pass=None,
                             followings_input=False, followings_output='profiles.txt',
-                            destination='./', retain_username=False, interactive=False,
+                            destination='./', logger=None, retain_username=False, interactive=False,
                             quiet=False, maximum=0, media_metadata=False, profile_metadata=False, latest=False,
                             latest_stamps=False, cookiejar=None,
                             media_types=['image', 'video', 'story-image', 'story-video'],
@@ -116,7 +116,8 @@ class InstagramScraper(object):
             self.latest = True
 
         # Set up a logger
-        self.logger = InstagramScraper.get_logger(level=logging.DEBUG, dest=default_attr.get('log_destination'), verbose=default_attr.get('verbose'))
+        if self.logger is None:
+            self.logger = InstagramScraper.get_logger(level=logging.DEBUG, dest=default_attr.get('log_destination'), verbose=default_attr.get('verbose'))
 
         self.posts = []
 
