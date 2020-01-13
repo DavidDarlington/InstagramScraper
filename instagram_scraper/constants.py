@@ -6,7 +6,7 @@ USER_URL = BASE_URL + '{0}/?__a=1'
 USER_INFO = 'https://i.instagram.com/api/v1/users/{0}/info/'
 
 STORIES_URL = BASE_URL + 'graphql/query/?query_hash=45246d3fe16ccc6577e0bd297a5db1ab&variables=%7B%22reel_ids%22%3A%5B%22{0}%22%5D%2C%22tag_names%22%3A%5B%5D%2C%22location_ids%22%3A%5B%5D%2C%22highlight_reel_ids%22%3A%5B%5D%2C%22precomposed_overlay%22%3Afalse%7D'
-STORIES_UA = 'Instagram 52.0.0.8.83 (iPhone; CPU iPhone OS 11_4 like Mac OS X; en_US; en-US; scale=2.00; 750x1334) AppleWebKit/605.1.15'
+STORIES_UA = 'Instagram 123.0.0.21.114 (iPhone; CPU iPhone OS 11_4 like Mac OS X; en_US; en-US; scale=2.00; 750x1334) AppleWebKit/605.1.15'
 
 TAGS_URL = BASE_URL + 'explore/tags/{0}/?__a=1'
 LOCATIONS_URL = BASE_URL + 'explore/locations/{0}/?__a=1'
