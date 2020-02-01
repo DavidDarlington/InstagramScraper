@@ -23,15 +23,12 @@ except ImportError:
     from urlparse import urlparse
 
 import warnings
-
 import threading
 import concurrent.futures
 import requests
 import tqdm
 
 from instagram_scraper.constants import *
-
-
 
 try:
     reload(sys)  # Python 2.7
@@ -85,7 +82,7 @@ class InstagramScraper(object):
                             followings_input=False, followings_output='profiles.txt',
                             destination='./', logger=None, retain_username=False, interactive=False,
                             quiet=False, maximum=0, media_metadata=False, profile_metadata=False, latest=False,
-                            latest_stamps=False, cookiejar=None,
+                            latest_stamps=False, cookiejar=None, filter_location=None, filter_locations=None,
                             media_types=['image', 'video', 'story-image', 'story-video'],
                             tag=False, location=False, search_location=False, comments=False,
                             verbose=0, include_location=False, filter=None, proxies={}, no_check_certificate=False,
@@ -144,8 +141,7 @@ class InstagramScraper(object):
         self.logged_in = False
         self.last_scraped_filemtime = 0
         if default_attr['filter']:
-            self.filter = list(self.filter)
-
+            self.filter = list(self.filter)  
         self.quit = False
 
     def sleep(self, secs):
@@ -463,6 +459,10 @@ class InstagramScraper(object):
                 iter = 0
                 for item in tqdm.tqdm(media_generator(value), desc='Searching {0} for posts'.format(value), unit=" media",
                                       disable=self.quiet):
+
+                    if self.filter_location:
+                        if item.get("location") is None or item.get("location").get("id") not in self.filter_locations:
+                            continue
                     if ((item['is_video'] is False and 'image' in self.media_types) or \
                                 (item['is_video'] is True and 'video' in self.media_types)
                         ) and self.is_new_media(item):
@@ -565,10 +565,9 @@ class InstagramScraper(object):
         if self.include_location and 'location' not in node:
             details = self.__get_media_details(node['shortcode'])
             node['location'] = details.get('location') if details else None
-
+            
         if 'urls' not in node:
             node['urls'] = []
-
         if node['is_video'] and 'video_url' in node:
             node['urls'] = [node['video_url']]
         elif '__typename' in node and node['__typename'] == 'GraphImage':
@@ -1207,6 +1206,8 @@ class InstagramScraper(object):
                 output_list.update(data)
                 json.dump(output_list, codecs.getwriter('utf-8')(f), indent=4, sort_keys=True, ensure_ascii=False)
 
+    
+
     @staticmethod
     def get_logger(level=logging.DEBUG, dest='', verbose=0):
         """Returns a logger."""
@@ -1229,7 +1230,7 @@ class InstagramScraper(object):
         return logger
 
     @staticmethod
-    def parse_file_usernames(usernames_file):
+    def get_values_from_file(usernames_file):
         """Parses a file containing a list of usernames."""
         users = []
 
@@ -1348,6 +1349,8 @@ def main():
                         help='File in which to store cookies so that they can be reused between runs.')
     parser.add_argument('--tag', action='store_true', default=False, help='Scrape media using a hashtag')
     parser.add_argument('--filter', default=None, help='Filter by tags in user posts', nargs='*')
+    parser.add_argument('--filter_location', default=None, nargs="*", help="filter query by only accepting media with location filter as the location id")
+    parser.add_argument('--filter_location_file', default=None, type=str, help="file containing list of locations to filter query by")
     parser.add_argument('--location', action='store_true', default=False, help='Scrape media using a location-id')
     parser.add_argument('--search-location', action='store_true', default=False, help='Search for locations by name')
     parser.add_argument('--comments', action='store_true', default=False, help='Save post comments to json file')
@@ -1381,11 +1384,19 @@ def main():
         parser.print_help()
         raise ValueError('Filters apply to user posts')
 
+    if (args.filter_location or args.filter_location_file) and not args.include_location:
+        pasrser.print_help()
+        raise ValueError('Location filter needs locations in metadata to filter properly')
+
     if args.filename:
-        args.usernames = InstagramScraper.parse_file_usernames(args.filename)
+        args.usernames = InstagramScraper.get_values_from_file(args.filename)
     else:
         args.usernames = InstagramScraper.parse_delimited_str(','.join(args.username))
 
+    if args.filter_location_file:
+        args.filter_locations = InstagramScraper.get_values_from_file(args.filter_location_file)
+    else:
+        args.filter_locations = InstagramScraper.parse_delimited_str(','.join(args.filter_location))
     if args.media_types and len(args.media_types) == 1 and re.compile(r'[,;\s]+').findall(args.media_types[0]):
         args.media_types = InstagramScraper.parse_delimited_str(args.media_types[0])
 
