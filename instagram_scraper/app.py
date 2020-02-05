@@ -13,6 +13,7 @@ import hashlib
 import os
 import pickle
 import re
+import socket
 import sys
 import textwrap
 import time
@@ -26,6 +27,7 @@ import warnings
 import threading
 import concurrent.futures
 import requests
+import requests.packages.urllib3.util.connection as urllib3_connection
 import tqdm
 
 from instagram_scraper.constants import *
@@ -52,8 +54,14 @@ class LockedStream(object):
     def flush(self):
         return getattr(self.file, 'flush', lambda: None)()
 
+def allowed_gai_family():
+    family = socket.AF_INET  # force IPv4
+    return family
+
 original_stdout, original_stderr = sys.stdout, sys.stderr
 sys.stdout, sys.stderr = map(LockedStream, (sys.stdout, sys.stderr))
+# Force using IPv4 connections, when the machine where this code runs uses IPv6
+urllib3_connection.allowed_gai_family = allowed_gai_family
 
 def threaded_input(prompt):
     with input_lock:
