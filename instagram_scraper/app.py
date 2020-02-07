@@ -460,7 +460,7 @@ class InstagramScraper(object):
                 for item in tqdm.tqdm(media_generator(value), desc='Searching {0} for posts'.format(value), unit=" media",
                                       disable=self.quiet):
 
-                    if self.filter_location:
+                    if self.filter_locations:
                         if item.get("location") is None or item.get("location").get("id") not in self.filter_locations:
                             continue
                     if ((item['is_video'] is False and 'image' in self.media_types) or \
@@ -1385,7 +1385,7 @@ def main():
         raise ValueError('Filters apply to user posts')
 
     if (args.filter_location or args.filter_location_file) and not args.include_location:
-        pasrser.print_help()
+        parser.print_help()
         raise ValueError('Location filter needs locations in metadata to filter properly')
 
     if args.filename:
@@ -1395,8 +1395,9 @@ def main():
 
     if args.filter_location_file:
         args.filter_locations = InstagramScraper.get_values_from_file(args.filter_location_file)
-    else:
+    elif args.filter_location:
         args.filter_locations = InstagramScraper.parse_delimited_str(','.join(args.filter_location))
+        
     if args.media_types and len(args.media_types) == 1 and re.compile(r'[,;\s]+').findall(args.media_types[0]):
         args.media_types = InstagramScraper.parse_delimited_str(args.media_types[0])
 
