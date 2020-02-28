@@ -697,7 +697,7 @@ class InstagramScraper(object):
 
             user_info = json.loads(resp)['user']
 
-            if user_info['has_anonymous_profile_picture'] in user_info:
+            if 'has_anonymous_profile_picture' in user_info:
                 return
 
             try:
