@@ -697,11 +697,8 @@ class InstagramScraper(object):
 
             user_info = json.loads(resp)['user']
 
-            try:
-                if user_info['has_anonymous_profile_picture']:
-                    return
-            except Exception as e:
-                pass
+            if user_info['has_anonymous_profile_picture'] in user_info:
+                return
 
             try:
                 profile_pic_urls = [
