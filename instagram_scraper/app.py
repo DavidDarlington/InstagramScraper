@@ -1290,8 +1290,8 @@ class InstagramScraper(object):
                 place['title'],
                 place['subtitle'],
                 place['location']['city'],
-                place['location']['lat'],
-                place['location']['lng']
+                place['location'].get('lat'),
+                place['location'].get('lng')
             ))
 
     def merge_json(self, data, dst='./'):
