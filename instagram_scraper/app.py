@@ -92,7 +92,7 @@ class InstagramScraper(object):
                             followings_input=False, followings_output='profiles.txt',
                             destination='./', logger=None, retain_username=False, interactive=False,
                             quiet=False, maximum=0, media_metadata=False, profile_metadata=False, latest=False,
-                            latest_stamps=False, cookiejar=None,
+                            latest_stamps=False, cookiejar=None, filter_location=None, filter_locations=None,
                             media_types=['image', 'video', 'story-image', 'story-video', 'broadcast'],
                             tag=False, location=False, search_location=False, comments=False,
                             verbose=0, include_location=False, filter=None, proxies={}, no_check_certificate=False,
