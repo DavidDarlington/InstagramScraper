@@ -473,7 +473,7 @@ class InstagramScraper(object):
                                       disable=self.quiet):
 
                     if self.filter_locations:
-                        if item.get("location") is None or item.get("location").get("id") not in self.filter_locations:
+                        if item.get("location") is None or self.get_key_from_value(self.filter_locations, item["location"].get("id")) is None:
                             continue
                     if ((item['is_video'] is False and 'image' in self.media_types) or \
                                 (item['is_video'] is True and 'video' in self.media_types)
@@ -1072,6 +1072,9 @@ class InstagramScraper(object):
     def download(self, item, save_dir='./'):
         """Downloads the media file."""
 
+        if self.filter_locations:
+            save_dir = os.path.join(save_dir, self.get_key_from_value(self.filter_locations, item["location"]["id"]))
+        
         files_path = []
 
         for full_url, base_name in self.templatefilename(item):
@@ -1372,6 +1375,39 @@ class InstagramScraper(object):
         return users
 
     @staticmethod
+    def get_locations_from_file(locations_file):
+        """
+        parse an ini like file with sections composed of headers, [locaiton], 
+        and arguments that are location ids
+        """
+        locations={}
+        with open(locations_file, 'r') as f_in:
+            lines = filter(None, (line.rstrip() for line in f_in))
+            for line in lines:
+                match = re.search(r"\[(\w+)\]", line)
+                if match:
+                    current_group = match.group(1)
+                    locations.setdefault(current_group, [])
+                else:
+                    if  not line.strip().startswith("#"):
+                        try:
+                            locations[current_group].append(line.strip())
+                        except NameError:
+                            print("Must Start File with A Heading Enclosed in []")
+                            sys.exit(1)
+        return locations
+
+    @staticmethod
+    def get_key_from_value(location_dict, value):
+        """
+        Determine if value exist inside dict and return its key, otherwise return None
+        """
+        for key, values in location_dict.items():
+            if value in values:
+                return key
+        return None
+
+    @staticmethod
     def parse_delimited_str(input):
         """Parse the string input as a list of delimited tokens."""
         return re.findall(r'[^,;\s]+', input)
@@ -1521,9 +1557,12 @@ def main():
         args.usernames = InstagramScraper.parse_delimited_str(','.join(args.username))
 
     if args.filter_location_file:
-        args.filter_locations = InstagramScraper.get_values_from_file(args.filter_location_file)
+        args.filter_locations = InstagramScraper.get_locations_from_file(args.filter_location_file)
     elif args.filter_location:
-        args.filter_locations = InstagramScraper.parse_delimited_str(','.join(args.filter_location))
+        locations = {}
+        locations.setdefault('', [])
+        locations[''] = InstagramScraper.parse_delimited_str(','.join(args.filter_location))
+        args.filter_locations = locations
         
     if args.media_types and len(args.media_types) == 1 and re.compile(r'[,;\s]+').findall(args.media_types[0]):
         args.media_types = InstagramScraper.parse_delimited_str(args.media_types[0])
@@ -1531,8 +1570,6 @@ def main():
     if args.retry_forever:
         global MAX_RETRIES
         MAX_RETRIES = sys.maxsize
-
-
 
     scraper = InstagramScraper(**vars(args))
 

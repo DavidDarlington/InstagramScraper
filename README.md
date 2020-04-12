@@ -70,6 +70,35 @@ username3
 ```
 *The usernames may be separated by newlines, commas, semicolons, or whitespace.*
 
+You can also supply a file containing a list of location ids:
+```bash
+$ instagram-scraper --tag <your_tag_here> --include-location --filter_location_file my_locations.txt           
+```
+
+```
+# my_locations.txt
+[some_reagion1]
+location_id1
+location_id2
+
+[some_region2]
+location_id3
+location_id4
+
+# and so on...
+```
+
+The resulting directory structure will be:
+```
+your_tag
+├── some_reagion1
+│   └── images_here
+└── some_reagion2
+    └── images_here
+```
+
+*The locations can only be separated by newlines and spaces.*
+
 
 OPTIONS
 -------
