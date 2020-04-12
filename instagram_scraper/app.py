@@ -125,6 +125,7 @@ class InstagramScraper(object):
             self.logger = InstagramScraper.get_logger(level=logging.DEBUG, dest=default_attr.get('log_destination'), verbose=default_attr.get('verbose'))
 
         self.posts = []
+        self.stories = []
 
         self.session = requests.Session()
         if self.no_check_certificate:
@@ -149,7 +150,7 @@ class InstagramScraper(object):
         self.logged_in = False
         self.last_scraped_filemtime = 0
         if default_attr['filter']:
-            self.filter = list(self.filter)  
+            self.filter = list(self.filter)
         self.quit = False
 
     def sleep(self, secs):
@@ -455,6 +456,7 @@ class InstagramScraper(object):
         try:
             for value in self.usernames:
                 self.posts = []
+                self.stories = []
                 self.last_scraped_filemtime = 0
                 greatest_timestamp = 0
                 future_to_item = {}
@@ -508,11 +510,8 @@ class InstagramScraper(object):
                 if greatest_timestamp > self.last_scraped_filemtime:
                     self.set_last_scraped_timestamp(value, greatest_timestamp)
 
-                if (self.media_metadata or self.comments or self.include_location) and self.posts:
-                    if self.latest:
-                        self.merge_json({ 'GraphImages': self.posts }, '{0}/{1}.json'.format(dst, value))
-                    else:
-                        self.save_json({ 'GraphImages': self.posts }, '{0}/{1}.json'.format(dst, value))
+                self._persist_metadata(dst, value)
+
         finally:
             self.quit = True
 
@@ -573,7 +572,7 @@ class InstagramScraper(object):
         if self.include_location and 'location' not in node:
             details = self.__get_media_details(node['shortcode'])
             node['location'] = details.get('location') if details else None
-            
+
         if 'urls' not in node:
             node['urls'] = []
         if node['is_video'] and 'video_url' in node:
@@ -622,6 +621,7 @@ class InstagramScraper(object):
         try:
             for username in self.usernames:
                 self.posts = []
+                self.stories = []
                 self.last_scraped_filemtime = 0
                 greatest_timestamp = 0
                 future_to_item = {}
@@ -671,11 +671,8 @@ class InstagramScraper(object):
                     if greatest_timestamp > self.last_scraped_filemtime:
                         self.set_last_scraped_timestamp(username, greatest_timestamp)
 
-                    if (self.media_metadata or self.comments or self.include_location) and self.posts:
-                        if self.latest:
-                            self.merge_json({ 'GraphImages': self.posts }, '{0}/{1}.json'.format(dst, username))
-                        else:
-                            self.save_json({ 'GraphImages': self.posts }, '{0}/{1}.json'.format(dst, username))
+                    self._persist_metadata(dst, username)
+
                 except ValueError:
                     self.logger.error("Unable to scrape user - %s" % username)
         finally:
@@ -843,7 +840,7 @@ class InstagramScraper(object):
             except (TypeError, KeyError, IndexError):
                 pass
 
-    def __fetch_stories(self, url):
+    def __fetch_stories(self, url, fetching_highlights_metadata=False):
         resp = self.get_json(url)
 
         if resp is not None:
@@ -853,6 +850,9 @@ class InstagramScraper(object):
 
                 for reel_media in retval['data']['reels_media']:
                     items.extend([self.set_story_url(item) for item in reel_media['items']])
+                    for item in reel_media['items']:
+                        item['highlight'] = fetching_highlights_metadata
+                        self.stories.append(item)
 
                 return items
 
@@ -883,10 +883,10 @@ class InstagramScraper(object):
                 stories = []
 
                 for ids_chunk in ids_chunks:
-                    stories.extend(self.__fetch_stories(HIGHLIGHT_STORIES_REEL_ID_URL.format('%22%2C%22'.join(str(x) for x in ids_chunk))))
+                    stories.extend(self.__fetch_stories(HIGHLIGHT_STORIES_REEL_ID_URL.format('%22%2C%22'.join(str(x) for x in ids_chunk)), fetching_highlights_metadata=True))
 
                 return stories
-
+              
         return []
 
     def query_media_gen(self, user, end_cursor=''):
@@ -1213,7 +1213,7 @@ class InstagramScraper(object):
         """Saves the data to a json file."""
         if not os.path.exists(os.path.dirname(dst)):
             os.makedirs(os.path.dirname(dst))
-            
+
         if data:
             output_list = {}
             if os.path.exists(dst):
@@ -1224,7 +1224,20 @@ class InstagramScraper(object):
                 output_list.update(data)
                 json.dump(output_list, codecs.getwriter('utf-8')(f), indent=4, sort_keys=True, ensure_ascii=False)
 
-    
+    def _persist_metadata(self, dirname, filename):
+        metadata_path = '{0}/{1}.json'.format(dirname, filename)
+        if (self.media_metadata or self.comments or self.include_location):
+            if self.posts:
+                if self.latest:
+                    self.merge_json({'GraphImages': self.posts}, metadata_path)
+                else:
+                    self.save_json({'GraphImages': self.posts}, metadata_path)
+
+            if self.stories:
+                if self.latest:
+                    self.merge_json({'GraphStories': self.stories}, metadata_path)
+                else:
+                    self.save_json({'GraphStories': self.stories}, metadata_path)
 
     @staticmethod
     def get_logger(level=logging.DEBUG, dest='', verbose=0):
@@ -1423,7 +1436,7 @@ def main():
         global MAX_RETRIES
         MAX_RETRIES = sys.maxsize
 
-    
+
 
     scraper = InstagramScraper(**vars(args))
 
