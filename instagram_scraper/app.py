@@ -19,6 +19,7 @@ import textwrap
 import time
 import xml.etree.ElementTree as ET
 import moviepy.editor as mpe
+from collections import Counter
 
 try:
     from urllib.parse import urlparse
@@ -151,6 +152,7 @@ class InstagramScraper(object):
         self.authenticated = False
         self.logged_in = False
         self.last_scraped_filemtime = 0
+        self.initial_scraped_filemtime = 0
         if default_attr['filter']:
             self.filter = list(self.filter)
         self.quit = False
@@ -328,6 +330,7 @@ class InstagramScraper(object):
         # Resolve last scraped filetime
         if self.latest_stamps_parser:
             self.last_scraped_filemtime = self.get_last_scraped_timestamp(username)
+            self.initial_scraped_filemtime = self.last_scraped_filemtime
         elif os.path.isdir(dst):
             self.last_scraped_filemtime = self.get_last_scraped_filemtime(dst)
 
@@ -488,8 +491,12 @@ class InstagramScraper(object):
                         item['edge_media_to_comment']['data'] = list(self.query_comments_gen(item['shortcode']))
 
                     if self.media_metadata or self.comments or self.include_location:
-                        self.posts.append(item)
-
+                        if self.latest_stamps_parser and self.initial_scraped_filemtime > self.__get_timestamp(item):
+                            pass
+                        else:
+                            self.posts.append(item)
+                        
+                            
                     iter = iter + 1
                     if self.maximum != 0 and iter >= self.maximum:
                         break
@@ -1293,7 +1300,8 @@ class InstagramScraper(object):
                 place['location'].get('lat'),
                 place['location'].get('lng')
             ))
-
+            
+            
     def merge_json(self, data, dst='./'):
         if not os.path.exists(dst):
             self.save_json(data, dst)
@@ -1301,12 +1309,24 @@ class InstagramScraper(object):
         if data:
             merged = data
             with open(dst, 'rb') as f:
-                file_data = json.load(codecs.getreader('utf-8')(f))
                 key = list(merged.keys())[0]
+                file_data = json.load(codecs.getreader('utf-8')(f))
+                self.remove_duplicate_data(file_data[key])
                 if key in file_data:
                     merged[key] = file_data[key]
             self.save_json(merged, dst)
 
+    @staticmethod
+    def remove_duplicate_data(file_data):
+        duplicate_post_index = []
+        file_data_ids = []
+        for post in file_data:
+            file_data_ids.append(post["id"])
+        file_data_id_counts = Counter(file_data_ids)
+        for id_, count in file_data_id_counts.items():
+            if count > 1:
+                file_data.pop(file_data_ids.index(id_))
+            
     @staticmethod
     def save_json(data, dst='./'):
         """Saves the data to a json file."""
