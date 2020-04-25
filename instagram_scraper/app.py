@@ -19,7 +19,6 @@ import textwrap
 import time
 import xml.etree.ElementTree as ET
 import moviepy.editor as mpe
-from collections import Counter
 
 try:
     from urllib.parse import urlparse
@@ -1315,14 +1314,16 @@ class InstagramScraper(object):
 
     @staticmethod
     def remove_duplicate_data(file_data):
-        duplicate_post_index = []
+        unique_ids = set()
         file_data_ids = []
         for post in file_data:
             file_data_ids.append(post["id"])
-        file_data_id_counts = Counter(file_data_ids)
-        for id_, count in file_data_id_counts.items():
-            if count > 1:
-                file_data.pop(file_data_ids.index(id_))
+        file_ids_copy = file_data_ids.copy()
+        for id_ in file_ids_copy:
+            if id_ in unique_ids:
+                file_data_ids.pop(file_data_ids.index(id_))
+            else:
+                unique_ids.add(id_)
             
     @staticmethod
     def save_json(data, dst='./'):
