@@ -495,7 +495,6 @@ class InstagramScraper(object):
                             pass
                         else:
                             self.posts.append(item)
-                        
                             
                     iter = iter + 1
                     if self.maximum != 0 and iter >= self.maximum:
@@ -1300,12 +1299,10 @@ class InstagramScraper(object):
                 place['location'].get('lat'),
                 place['location'].get('lng')
             ))
-            
-            
+
     def merge_json(self, data, dst='./'):
         if not os.path.exists(dst):
             self.save_json(data, dst)
-
         if data:
             merged = data
             with open(dst, 'rb') as f:
