@@ -152,7 +152,7 @@ OPTIONS
 --profile-metadata      Saves the user profile metadata to  <destination>/<username>.json.
 
 --proxies               Enable use of proxies, add a valid JSON with http or/and https urls.
-                        Example: '{"http": "http://<ip>:<port>", "http": "https://<ip>:<port>" }'
+                        Example: '{"http": "http://<ip>:<port>", "https": "https://<ip>:<port>" }'
 
 --comments             Saves the comment metadata associated with the posts to 
                        <destination>/<username>.json. Implicitly includes --media-metadata.
