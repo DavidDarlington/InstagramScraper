@@ -620,7 +620,7 @@ class InstagramScraper(object):
 
         if code:
             details = self.__get_media_details(code)
-            item['location'] = details.get('location')
+            item['location'] = details.get('location') if details else None
 
     def scrape(self, executor=concurrent.futures.ThreadPoolExecutor(max_workers=MAX_CONCURRENT_DOWNLOADS)):
         """Crawls through and downloads user's media"""
