@@ -377,7 +377,7 @@ class InstagramScraper(object):
 
     def query_followings_gen(self, username, end_cursor=''):
         """Generator for followings."""
-        user = self.deep_get(self.get_shared_data(username), 'entry_data.ProfilePage[0].graphql.user')
+        user = self.get_shared_data_userinfo(username)
         id = user['id']
         followings, end_cursor = self.__query_followings(id, end_cursor)
 
@@ -636,8 +636,7 @@ class InstagramScraper(object):
                 dst = self.get_dst_dir(username)
 
                 # Get the user metadata.
-                shared_data = self.get_shared_data(username)
-                user = self.deep_get(shared_data, 'entry_data.ProfilePage[0].graphql.user')
+                user = self.get_shared_data_userinfo(username)
 
                 if not user:
                     self.logger.error(
@@ -855,16 +854,29 @@ class InstagramScraper(object):
             if self.maximum != 0 and iter >= self.maximum:
                 break
 
-    def get_shared_data(self, username=''):
+    def get_shared_data_userinfo(self, username=''):
         """Fetches the user's metadata."""
         resp = self.get_json(BASE_URL + username)
 
-        if resp is not None and '_sharedData' in resp:
+        userinfo = None
+        
+        if resp is not None:
             try:
-                shared_data = resp.split("window._sharedData = ")[1].split(";</script>")[0]
-                return json.loads(shared_data)
+                if "window._sharedData = " in resp:
+                    shared_data = resp.split("window._sharedData = ")[1].split(";</script>")[0]
+                    if shared_data:
+                        userinfo = self.deep_get(json.loads(shared_data), 'entry_data.ProfilePage[0].graphql.user')
+                
+                if "window.__additionalDataLoaded(" in resp and not userinfo:
+                    parameters = resp.split("window.__additionalDataLoaded(")[1].split(");</script>")[0]
+                    if parameters and "," in parameters:
+                        shared_data = parameters.split(",", 1)[1]
+                        if shared_data:
+                            userinfo = self.deep_get(json.loads(shared_data), 'graphql.user')
             except (TypeError, KeyError, IndexError):
                 pass
+        
+        return userinfo
 
     def __fetch_stories(self, url, fetching_highlights_metadata=False):
         resp = self.get_json(url)
