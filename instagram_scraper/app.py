@@ -924,7 +924,7 @@ class InstagramScraper(object):
                     stories.extend(self.__fetch_stories(HIGHLIGHT_STORIES_REEL_ID_URL.format('%22%2C%22'.join(str(x) for x in ids_chunk)), fetching_highlights_metadata=True))
 
                 return stories
-              
+
         return []
 
     def fetch_broadcasts(self, user_id):
@@ -1079,7 +1079,7 @@ class InstagramScraper(object):
     def set_story_url(self, item):
         """Sets the story url."""
         urls = []
-        if 'video_resources' in item:
+        if 'video_resources' in item and item['video_resources']:
             urls.append(item['video_resources'][-1]['src'])
         if 'display_resources' in item:
             urls.append(item['display_resources'][-1]['src'])
@@ -1091,7 +1091,7 @@ class InstagramScraper(object):
 
         if self.filter_locations:
             save_dir = os.path.join(save_dir, self.get_key_from_value(self.filter_locations, item["location"]["id"]))
-        
+
         files_path = []
 
         for full_url, base_name in self.templatefilename(item):
@@ -1407,7 +1407,7 @@ class InstagramScraper(object):
     @staticmethod
     def get_locations_from_file(locations_file):
         """
-        parse an ini like file with sections composed of headers, [locaiton], 
+        parse an ini like file with sections composed of headers, [locaiton],
         and arguments that are location ids
         """
         locations={}
@@ -1593,7 +1593,7 @@ def main():
         locations.setdefault('', [])
         locations[''] = InstagramScraper.parse_delimited_str(','.join(args.filter_location))
         args.filter_locations = locations
-        
+
     if args.media_types and len(args.media_types) == 1 and re.compile(r'[,;\s]+').findall(args.media_types[0]):
         args.media_types = InstagramScraper.parse_delimited_str(args.media_types[0])
 
