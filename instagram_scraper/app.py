@@ -797,7 +797,7 @@ class InstagramScraper(object):
 
             # Downloads the user's broadcasts and sends it to the executor.
             iter = 0
-            for item in tqdm.tqdm(broadcasts, desc='Searching {0} for stories'.format(user['username']), unit=" media",
+            for item in tqdm.tqdm(broadcasts, desc='Searching {0} for broadcasts'.format(user['username']), unit=" media",
                                   disable=self.quiet):
                 item['username'] = user['username']
                 future = executor.submit(self.worker_wrapper, self.dowload_broadcast, item, dst)
